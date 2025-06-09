@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string dbName = "Test";
+      public static string dbName = "Oak";
 
       static void Main(string[] args)
       {
@@ -36,9 +36,9 @@ namespace LaborLens {
          var timecards = new SQL.SQLRepository().GetTimecards(dbName);
          var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
-         // var empCards = new Dictionary<string, List<Timecard>>();
-         // var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
-         // empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
+        //  var empCards = new Dictionary<string, List<Timecard>>();
+          var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
+          empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
          //new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
@@ -55,10 +55,10 @@ namespace LaborLens {
          //}
          #endregion
          #region SQL Pay Parser
-         //var stubdata = new SQL.SQLRepository().GetPaydata(dbName);
-         //var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
+         var stubdata = new SQL.SQLRepository().GetPaydata(dbName);
+         var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
-         Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
+        // Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          // var stubdata2 = new SQL.SQLRepository().GetPaydata2(dbName);
          // stubs = new SQL.SQLRepository().ConvertPayDataToDict2(stubs, stubdata2);
 
@@ -170,9 +170,9 @@ namespace LaborLens {
          #endregion
 
          #region Salary analysis
-         //  new ExcelWriter().PoulateRoster(rosterResults);
-         // new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
-         //  new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
+       //    new ExcelWriter().PoulateRoster(rosterResults);
+        //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
+        //   new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
 
          //double totalHrs = 0;
          //double cnt = 0;

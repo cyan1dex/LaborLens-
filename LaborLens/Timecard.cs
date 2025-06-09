@@ -147,6 +147,7 @@ namespace LaborLens {
             // Case: SHORT meal (18–30)
             // ------------------------
             else if (mins >= 18 && mins < 30) {
+
                if (!firstMealTaken) {
                   breaksORMealsUnder30Before5th++;
                } else if (!secondMealTaken) {
@@ -156,6 +157,13 @@ namespace LaborLens {
 
                if (breakStartOffset.TotalHours > 10.0)
                   mealTakenAfter10 = true; // <-- ADD THIS
+            }
+            // ------------------------
+            // Case: Break (Under 15)
+            // ------------------------
+            else if (mins <= 15) {
+
+               totalHrsActual= totalHrsActual.Add(TimeSpan.FromMinutes(mins));
             }
 
             #region logging
