@@ -84,7 +84,7 @@ namespace LaborLens.SQL {
 
             try {
 
-               identifier = row["EE_ID"].ToString();
+               identifier = row["EE_ID"].ToString().ToUpper();
                DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
                DateTime end =  checkDate.AddDays(-5); //  ////
                DateTime start = checkDate.AddDays(-6); //  ////
@@ -775,7 +775,7 @@ namespace LaborLens.SQL {
             string currentID = string.Empty;
 
             if (row["EE_ID"].ToString().Trim() != string.Empty) {
-               currentID = row["EE_ID"].ToString().Replace("HBS", "").Trim().ToString();
+               currentID = row["EE_ID"].ToString().Replace("HBS", "").Trim().ToString().ToUpper();
                //  int val = int.Parse(currentID);
                // currentID = val.ToString();
             } else
