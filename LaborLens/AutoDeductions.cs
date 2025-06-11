@@ -30,20 +30,19 @@ namespace LaborLens {
 
                double periodAD = 0;
 
-               foreach (Timecard c in s.timeCards) {
-                  ad += c.possibleAutoDeduct == true ? 1 : 0;
+               //total possible auto-deductions
+                ad = s.timeCards.Count(c => c.possibleAutoDeduct == true);
 
-                  if (c.possibleAutoDeduct && Math.Abs(c.totalHrsActual.TotalHours - (c.regHrsListed + c.otListed + .5)) < .25)
-                     autodeduct++;
-               }
-
-
-
-               //year auto-deduct implemented
-               //if (ad > 0 && s.periodBegin > new DateTime(2020, 3, 15)) {
-               //   autodeduct += ad;
-               //   periodAD += ad;
+               ////// If listed hours are correct use this ///////
+               //foreach (Timecard c in s.timeCards) {
+               //   if (c.possibleAutoDeduct && Math.Abs(c.totalHrsActual.TotalHours - (c.regHrsListed + c.otListed + .5)) < .25)
+               //      autodeduct++;
                //}
+               ///// If deductions are by the pay check use this /////
+               if (Math.Abs(check + ad / 2.0 - act) < .15)
+                  autodeduct += ad;
+
+
 
                if (periodAD > 0) {
                   act = act - periodAD / 2.0;
