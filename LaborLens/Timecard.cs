@@ -78,6 +78,9 @@ namespace LaborLens {
       {
          if (invalid) return;
 
+         if (this.shiftDate < earliest) earliest = this.shiftDate.Value;
+         if (this.shiftDate > latest) latest = this.shiftDate.Value;
+
          AddDayIfPriorDayIsEarlier();
 
          for (int i = 0; i < timepunches.Count - 1; i += 2) {

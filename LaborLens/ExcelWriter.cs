@@ -184,8 +184,9 @@ namespace LaborLens {
       }
 
 
-      public void PoulateGraphData(List<Shift> shifts, int totEmps, PayPeriods pagaData, int over35, double avgShift, int totalWorkWeeks)
+      public void PoulateGraphData(List<Shift> shifts, int totEmps, PayPeriods pagaData, int over35, Analysis analysis)
       {
+        // double avgShift, int totalWorkWeeks
          #region vars
          // int workWeeks = Program.GetTotalWorkweeks(empSheets);
          #endregion
@@ -346,8 +347,8 @@ namespace LaborLens {
          xlWorkSheet.Cells[row, 2] = Shift.totalMeals;
          xlWorkSheet.Cells[row, 3] = Shift.mealIs30;
          xlWorkSheet.Cells[row, 4] = Shift.shiftIs8;
-         xlWorkSheet.Cells[row, 5] = avgShift;
-         xlWorkSheet.Cells[row, 6] = totalWorkWeeks;
+         xlWorkSheet.Cells[row, 5] = analysis.avgShiftlength;
+         xlWorkSheet.Cells[row, 6] = analysis.totalWorkweeks;
          xlWorkSheet.Cells[row, 7] = Shift.mealIs60;
          row += 2;
 
@@ -356,6 +357,11 @@ namespace LaborLens {
 
          xlWorkSheet.Cells[row, 1] = Timecard.earliest.ToShortDateString();
          xlWorkSheet.Cells[row, 2] = Timecard.latest.ToShortDateString();
+
+
+         xlWorkSheet.Cells[28, 12] = "$"+ analysis.paidMealViolationsAmt.ToString("##,###,###.##");
+         xlWorkSheet.Cells[29, 12] = analysis.hrsPaidMealViolations.ToString("###,###");
+         xlWorkSheet.Cells[30, 12] = analysis.minMealViolPayDate.ToShortDateString();
 
          //PAGA numbers
          xlWorkSheet.Cells[38, 1] = pagaData.perW3n5;

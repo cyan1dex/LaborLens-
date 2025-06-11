@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string dbName = "Oak";
+      public static string dbName = "Estrada";
 
       static void Main(string[] args)
       {
@@ -37,8 +37,8 @@ namespace LaborLens {
          var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
         //  var empCards = new Dictionary<string, List<Timecard>>();
-          var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
-          empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
+        //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
+        //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
          //new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
@@ -140,13 +140,6 @@ namespace LaborLens {
          analysis.totalWorkweeks = analysis.PeriodAnalysis(timesheetsWithoutStubs);
          #endregion
 
-         #region Create Analysis Spreadsheet
-         new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis.avgShiftlength, analysis.totalWorkweeks);
-         analysis.meal30 = Shift.mealIs30;
-         analysis.mealsTaken = Shift.totalMeals;
-         analysis.shift8 = Shift.shiftIs8;
-         #endregion
-
          #region Populate Timesheets
          var timeSheets = new PayPeriods().PopulateADPTimesheets(stubs, empCards); //MUST DO FOR PAY PERIODS    
          analysis.PeriodAnalysis(timeSheets); //Get Period analysis
@@ -169,10 +162,18 @@ namespace LaborLens {
          // new DocWriter().WriteDocument(analysis);
          #endregion
 
+         #region Create Analysis Spreadsheet
+         analysis.meal30 = Shift.mealIs30;
+         analysis.mealsTaken = Shift.totalMeals;
+         analysis.shift8 = Shift.shiftIs8;
+
+         new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis);
+         #endregion
+
          #region Salary analysis
-       //    new ExcelWriter().PoulateRoster(rosterResults);
-        //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
-        //   new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
+         //   new ExcelWriter().PoulateRoster(rosterResults);
+         //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
+         //   new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
 
          //double totalHrs = 0;
          //double cnt = 0;
