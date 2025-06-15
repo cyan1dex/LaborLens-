@@ -261,6 +261,10 @@ namespace LaborLens {
          foreach (KeyValuePair<string, List<PayStub>> checks in stubs) {
             timesheets[checks.Key] = new List<Timesheet>(); //Create a new timesheet, all timecards with paystubs
 
+            if(checks.Key == "4") {
+               int p = 0;
+            }
+
             foreach (PayStub check in checks.Value) {
                if (check.invalid || check.periodEnd is null)
                   continue;

@@ -335,7 +335,6 @@ namespace LaborLens {
          double diff = actualTotalHours - listedTotalHours;
       }
 
-
       public static OvertimeResult CalculateOvertime(List<Timecard> timecards)
       {
          if (timecards == null || !timecards.Any())
@@ -351,55 +350,86 @@ namespace LaborLens {
              .ToList();
 
          foreach (var workweek in workweeks) {
-            double weeklyRawWorkedHours = 0;
+            var weeklyResult = CalculateWeeklyOvertime(workweek.ToList());
 
-            // Step 1: Group by day for daily OT/DT
-            var dailyHours = workweek
-                .GroupBy(t => t.shiftDate.Value.Date)
-                .ToDictionary(g => g.Key, g => g.Sum(t => t.totalHrsActual.TotalHours));
-
-            foreach (var day in dailyHours) {
-               double hoursForDay = day.Value;
-               weeklyRawWorkedHours += hoursForDay;
-
-               // Regular hours: up to 8/day
-               double regular = Math.Min(8.0, hoursForDay);
-               result.RegularHours += regular;
-               hoursForDay -= regular;
-
-               // OT: 8–12 hours/day
-               double overtime = Math.Min(4.0, hoursForDay);
-               result.OvertimeHours += overtime;
-               hoursForDay -= overtime;
-
-               // DT: over 12 hours/day
-               result.DoubletimeHours += hoursForDay;
-            }
-
-            // Step 2: 7th consecutive day rule
-            var seventhDayOtDt = Apply7thDayOvertime(workweek.ToList());
-            result.OvertimeHours += seventhDayOtDt.Item1;
-            result.DoubletimeHours += seventhDayOtDt.Item2;
-
-            // Step 3: Weekly OT — but exclude 7th day hours
-            double weeklyHoursExcluding7th = weeklyRawWorkedHours - (seventhDayOtDt.Item1 + seventhDayOtDt.Item2);
-            if (weeklyHoursExcluding7th > 40.0) {
-               double excess = weeklyHoursExcluding7th - 40.0;
-               result.RegularHours -= excess;
-               result.OvertimeHours += excess;
-            }
-
+            result.RegularHours += weeklyResult.RegularHours;
+            result.OvertimeHours += weeklyResult.OvertimeHours;
+            result.DoubletimeHours += weeklyResult.DoubletimeHours;
          }
 
          return result;
       }
 
+      private static OvertimeResult CalculateWeeklyOvertime(List<Timecard> weekTimecards)
+      {
+         var result = new OvertimeResult();
 
+         // Step 1: Group by day and calculate daily hours
+         var dailyHours = weekTimecards
+             .GroupBy(t => t.shiftDate.Value.Date)
+             .ToDictionary(g => g.Key, g => g.Sum(t => t.totalHrsActual.TotalHours));
 
+         double totalWeeklyHours = dailyHours.Values.Sum();
+
+         // Step 2: Calculate daily overtime first (CA prioritizes daily OT)
+         double totalRegularHours = 0;
+         double totalDailyOvertimeHours = 0;
+         double totalDoubletimeHours = 0;
+
+         foreach (var dayHours in dailyHours.Values) {
+            if (dayHours <= 8.0) {
+               // All regular hours
+               totalRegularHours += dayHours;
+            } else if (dayHours <= 12.0) {
+               // 8 regular + overtime
+               totalRegularHours += 8.0;
+               totalDailyOvertimeHours += (dayHours - 8.0);
+            } else {
+               // 8 regular + 4 overtime + doubletime
+               totalRegularHours += 8.0;
+               totalDailyOvertimeHours += 4.0;
+               totalDoubletimeHours += (dayHours - 12.0);
+            }
+         }
+
+         // Step 3: Calculate weekly overtime (over 40 hours)
+         double weeklyOvertimeHours = Math.Max(0.0, totalWeeklyHours - 40.0);
+
+         // Step 4: Apply California rule - take the GREATER of daily vs weekly OT
+         // This is the key point: you get whichever is more beneficial to the employee
+         double finalOvertimeHours = Math.Max(totalDailyOvertimeHours, weeklyOvertimeHours);
+
+         // Step 5: Adjust regular hours if weekly OT is higher than daily OT
+         double finalRegularHours = totalRegularHours;
+         if (weeklyOvertimeHours > totalDailyOvertimeHours) {
+            // When weekly OT is higher, we need to convert some "regular" hours to OT
+            double additionalOT = weeklyOvertimeHours - totalDailyOvertimeHours;
+            finalRegularHours = Math.Max(0, totalRegularHours - additionalOT);
+            finalOvertimeHours = weeklyOvertimeHours;
+         }
+
+         // Step 6: Check for 7th consecutive day rule
+         var (seventhDayOT, seventhDayDT) = Apply7thDayOvertime(weekTimecards);
+
+         // Add 7th day overtime (this is in addition to daily/weekly OT)
+         finalOvertimeHours += seventhDayOT;
+         totalDoubletimeHours += seventhDayDT;
+
+         // Final adjustment for 7th day hours
+         if (seventhDayOT > 0 || seventhDayDT > 0) {
+            finalRegularHours = Math.Max(0, finalRegularHours - (seventhDayOT + seventhDayDT));
+         }
+
+         result.RegularHours = finalRegularHours;
+         result.OvertimeHours = finalOvertimeHours;
+         result.DoubletimeHours = totalDoubletimeHours;
+
+         return result;
+      }
 
       /// <summary>
       /// Gets the start date of the workweek containing the given date
-      /// In California, the workweek is typically defined as Sunday through Saturday
+      /// In California, the workweek is Sunday through Saturday
       /// </summary>
       private static DateTime GetWorkweekStartDate(DateTime date)
       {
@@ -408,21 +438,29 @@ namespace LaborLens {
       }
 
       /// <summary>
-      /// Checks for 7 consecutive days worked and adjusts overtime accordingly
-      /// In California, working 7 consecutive days means:
-      /// - First 8 hours on the 7th day are overtime (1.5x)
-      /// - Hours beyond 8 on the 7th day are doubletime (2x)
+      /// California 7th consecutive day rule:
+      /// - Must work 7 consecutive days in the same workweek
+      /// - First 8 hours on 7th day = overtime (1.5x)
+      /// - Hours over 8 on 7th day = doubletime (2x)
       /// </summary>
       private static (double ot, double dt) Apply7thDayOvertime(List<Timecard> timecards)
       {
+         // Get unique work days in chronological order
          var workDays = timecards
              .Select(t => t.shiftDate.Value.Date)
              .Distinct()
              .OrderBy(d => d)
              .ToList();
 
+         // Need at least 7 days to have 7 consecutive
+         if (workDays.Count < 7)
+            return (0.0, 0.0);
+
+         // Find if there are 7 consecutive days worked
          for (int i = 0; i <= workDays.Count - 7; i++) {
             bool isConsecutive = true;
+
+            // Check if 7 days starting at index i are consecutive
             for (int j = 0; j < 6; j++) {
                if ((workDays[i + j + 1] - workDays[i + j]).Days != 1) {
                   isConsecutive = false;
@@ -431,19 +469,25 @@ namespace LaborLens {
             }
 
             if (isConsecutive) {
+               // The 7th day in the sequence
                DateTime seventhDay = workDays[i + 6];
+
+               // Get total hours worked on the 7th day
                var seventhDayHours = timecards
                    .Where(t => t.shiftDate.Value.Date == seventhDay)
                    .Sum(t => t.totalHrsActual.TotalHours);
 
+               // First 8 hours are overtime, beyond 8 are doubletime
                double otHours = Math.Min(8.0, seventhDayHours);
                double dtHours = Math.Max(0.0, seventhDayHours - 8.0);
+
                return (otHours, dtHours);
             }
          }
 
          return (0.0, 0.0);
       }
+
 
 
       public void CalculateNonStub()
