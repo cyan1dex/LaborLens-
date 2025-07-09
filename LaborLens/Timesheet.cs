@@ -311,9 +311,12 @@ namespace LaborLens {
          actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
 
          #region BI-Monthly
-         //var vals = CalculateOTHoursBiMonthly(this);
-         //actualOT = TimeSpan.FromHours( vals.overtimeHours);
-         //actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
+         if(this.stub.periodEnd.Value.Year < 2023) {
+            var vals = CalculateOTHoursBiMonthly(this);
+            actualOT = TimeSpan.FromHours(vals.overtimeHours);
+            actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
+         }
+
          #endregion
 
          double totalHours = timeCards.Sum(timecard => timecard.totalHrsActual.TotalHours);
@@ -332,7 +335,15 @@ namespace LaborLens {
 
          checkTotalHours = stub.regHrs + stub.otHrs + stub.doubleOtHrs;
          actualTotalHours = actualHours.TotalHours + actualOT.TotalHours;
+         SetListedHoursFromTimecard();
+
          double diff = actualTotalHours - listedTotalHours;
+      }
+
+      public void SetListedHoursFromTimecard()
+      {
+         foreach(Timecard card in this.timeCards) 
+              listedTotalHours += card.regHrsListed + card.otListed + card.dtListed;
       }
 
       public static OvertimeResult CalculateOvertime(List<Timecard> timecards)
@@ -617,56 +628,6 @@ namespace LaborLens {
          actualOT += doubleOT;
       }
 
-      public void AnalyzeDelunaHours()
-      {
-         actualHours = new TimeSpan();
-         actualOT = new TimeSpan();
-
-         listHours = TimeSpan.FromHours(stub.regHrs);
-         if (stub.otHrs != 0)
-            listOT = TimeSpan.FromHours(stub.otHrs);
-
-         regPay = stub.regPay;
-         otPay = stub.otPay;
-         otRate = stub.otRate;
-         regRate = stub.regRate;
-         periodBegin = stub.periodBegin;
-         periodEnd = stub.periodEnd;
-
-         TimeSpan week = new TimeSpan(0);
-         // TimeSpan weekTwo = new TimeSpan(0);
-         TimeSpan doubleOT = new TimeSpan(0);
-
-         listedTotalHours = stub.regHrs + stub.otHrs;
-         foreach (Timecard card in timeCards) {
-            week += card.totalHrsActual.TotalHours > 8 ? new TimeSpan(8, 0, 0) : card.totalHrsActual;
-
-            actualHours += card.totalHrsActual;
-
-            //Daily OT analysis
-            if (card.totalHrsActual.TotalHours > 8) //IF more than 8 hours was worked in the day
-               actualOT += card.totalHrsActual - new TimeSpan(8, 0, 0); //time minus 8 hours
-
-            //TODO: cannot just swap these types of hours
-            if (card.totalHrsActual.TotalHours > 12) //IF more than 12 hours was worked in the day
-               doubleOT += card.totalHrsActual - new TimeSpan(12, 0, 0); //time minus 8 hours
-
-            // if (card.mealAfter5hrs || card.mealUnder30) //Caclulate meal penalties
-            //     mealMissedOrUnder30 = 1;
-         }
-
-         //If more than 40 hours was worked in either work week
-         if (week.TotalHours > 40) //TODO: determine how to properly to do the over 40 OT
-         {
-            TimeSpan ot = week - new TimeSpan(40, 0, 0);
-            actualOT += ot;
-         }
-
-         //Remove OT from regulars hours
-         actualHours = actualHours - actualOT;
-         //add in double OT
-         actualOT += doubleOT;
-      }
 
       public void AnalyzeHours()
       {
@@ -712,6 +673,7 @@ namespace LaborLens {
             if (card.totalHrsActual.TotalHours > 12) //IF more than 12 hours was worked in the day
                doubleOT += card.totalHrsActual - new TimeSpan(12, 0, 0); //time minus 8 hours
 
+           
          }
 
          //If more than 40 hours was worked in either work week
@@ -730,6 +692,8 @@ namespace LaborLens {
          actualHours = actualHours - actualOT;
          //add in double OT
          actualOT += doubleOT;
+
+
       }
       #endregion
    }
