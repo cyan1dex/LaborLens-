@@ -80,14 +80,20 @@ namespace LaborLens.SQL {
          Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          string identifier = string.Empty;
 
+         bool singleLine = true;
+
+         if (dt.Columns.Contains("code")) {
+            singleLine = false;
+         }
+
          foreach (DataRow row in dt.Rows) {
 
             try {
 
                identifier = row["EE_ID"].ToString().ToUpper();
-               DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
-               DateTime end =  checkDate.AddDays(-5); //  ////
-               DateTime start = checkDate.AddDays(-6); //  ////
+             //  DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
+               DateTime end = DateTime.Parse(row["Period_End"].ToString());  ////
+               DateTime start = DateTime.Parse(row["Period_Begin"].ToString());  ////
 
                /////////////setup bi-monthly times////////////////////
                //if (checkDate.Day <= 16) {
@@ -99,76 +105,82 @@ namespace LaborLens.SQL {
                //   end = new DateTime(checkDate.Year, checkDate.Month, 15);
                //}
 
+               double regRate = 0;
+               double regHrs = 0;
+               double regPay = 0;
+               double otHrs = 0;
+               double otPay = 0;
+               double dblOTHrs = 0;
+               double dblOTPay = 0;
+               double pnltyHrs = 0;
+               double pnltyTPay = 0;
+               double bonus = 0;
+               double commissions = 0;
+
                #region pay data on a single line
-               double regRate = 0;// !String.IsNullOrEmpty(row["Rate"].ToString().Replace("$","")) ? Double.Parse(row["Rate"].ToString().Replace("$", "")) : 0;
+               if (singleLine) {
+                   regRate = 0;// !String.IsNullOrEmpty(row["Rate"].ToString().Replace("$","")) ? Double.Parse(row["Rate"].ToString().Replace("$", "")) : 0;
 
-               double regPay = row["Regular_Wages"].ToString() != string.Empty ? Double.Parse(row["Regular_Wages"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "").Replace("$", "")) : 0;
-               double regHrs = row["Reg_hrs"].ToString() != string.Empty ? Double.Parse(row["Reg_hrs"].ToString()) : 0;
+                   regPay = row["Regular_Wages"].ToString() != string.Empty ? Double.Parse(row["Regular_Wages"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "").Replace("$", "")) : 0;
+                   regHrs = row["Reg_hrs"].ToString() != string.Empty ? Double.Parse(row["Reg_hrs"].ToString()) : 0;
 
-               double otHrs = !String.IsNullOrEmpty(row["Overtime_Hours_Total"].ToString()) ? Double.Parse(row["Overtime_Hours_Total"].ToString()) : 0;
-               double otPay = !String.IsNullOrEmpty(row["OT_Wages"].ToString().Replace("$", "")) ? Double.Parse(row["OT_Wages"].ToString().Replace("$", "")) : 0;
+                   otHrs = !String.IsNullOrEmpty(row["Overtime_Hours_Total"].ToString()) ? Double.Parse(row["Overtime_Hours_Total"].ToString()) : 0;
+                   otPay = !String.IsNullOrEmpty(row["OT_Wages"].ToString().Replace("$", "")) ? Double.Parse(row["OT_Wages"].ToString().Replace("$", "")) : 0;
 
-               double dblOTHrs = !String.IsNullOrEmpty(row["DoubleTime_Hours"].ToString()) ? Double.Parse(row["DoubleTime_Hours"].ToString()) : 0;
-               double dblOTPay = !String.IsNullOrEmpty(row["DoubleTime_Earnings"].ToString().Replace("$", "")) ? Double.Parse(row["DoubleTime_Earnings"].ToString().Replace("$", "")) : 0;
+                   dblOTHrs = !String.IsNullOrEmpty(row["DoubleTime_Hours"].ToString()) ? Double.Parse(row["DoubleTime_Hours"].ToString()) : 0;
+                   dblOTPay = !String.IsNullOrEmpty(row["DoubleTime_Earnings"].ToString().Replace("$", "")) ? Double.Parse(row["DoubleTime_Earnings"].ToString().Replace("$", "")) : 0;
 
-             //  double pnltyHrs = !String.IsNullOrEmpty(row["Premium_Hours"].ToString()) ? Double.Parse(row["Premium_Hours"].ToString()) : 0;
-             //  double pnltyTPay = !String.IsNullOrEmpty(row["Premium_Earnings"].ToString()) ? Double.Parse(row["Premium_Earnings"].ToString()) : 0;
+                  //   pnltyHrs = !String.IsNullOrEmpty(row["Premium_Hours"].ToString()) ? Double.Parse(row["Premium_Hours"].ToString()) : 0;
+                  //   pnltyTPay = !String.IsNullOrEmpty(row["Premium_Earnings"].ToString()) ? Double.Parse(row["Premium_Earnings"].ToString()) : 0;
 
-               double bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings"].ToString()) ? Double.Parse(row["B_Bonus_earnings"].ToString()) : 0;
-               //if (bonus == 0)
-               //   bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings2"].ToString()) ? Double.Parse(row["B_Bonus_earnings2"].ToString()) : 0;
-               //double commissions = !String.IsNullOrEmpty(row["Commission_Total_Amount"].ToString()) ? Double.Parse(row["Commission_Total_Amount"].ToString()) : 0;
+                   bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings"].ToString()) ? Double.Parse(row["B_Bonus_earnings"].ToString()) : 0;
+                  if (bonus == 0)
+                     bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings2"].ToString()) ? Double.Parse(row["B_Bonus_earnings2"].ToString()) : 0;
+                   commissions = !String.IsNullOrEmpty(row["Commission_Total_Amount"].ToString()) ? Double.Parse(row["Commission_Total_Amount"].ToString()) : 0;
+               }
                #endregion
 
                #region pay data on multiple lines
-               //double regRate = 0;
-               //double regHrs = 0;
-               //double regPay = 0;
-               //double otHrs = 0;
-               //double otPay = 0;
-               //double dblOTHrs = 0;
-               //double dblOTPay = 0;
-               //double pnltyHrs = 0;
-               //double pnltyTPay = 0;
-               //double bonus = 0;
+               if (!singleLine) {
 
-               //if (row["code"].ToString().ToUpper() == "HOURLY" || row["code"].ToString().ToUpper().Contains("REGULAR")) {
-               //   regPay = Double.Parse(row["pay"].ToString().Trim(' ').Trim('$').Trim('(').Trim(')').Trim('$').Replace(",", ""));
-               //   if (regPay < 0)
-               //      continue;
-               //   if (row["hrs"].ToString() == String.Empty)
-               //      continue;
+                  if (row["code"].ToString().ToUpper() == "HOURLY" || row["code"].ToString().ToUpper().Contains("REGULAR")) {
+                     regPay = Double.Parse(row["pay"].ToString().Trim(' ').Trim('$').Trim('(').Trim(')').Trim('$').Replace(",", ""));
+                     if (regPay < 0)
+                        continue;
+                     if (row["hrs"].ToString() == String.Empty)
+                        continue;
 
-               //   if (row["hrs"].ToString().Contains(':'))
-               //      regHrs = ParseHours(row["hrs"].ToString());
-               //   else
-               //      regHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-               //}
+                     if (row["hrs"].ToString().Contains(':'))
+                        regHrs = ParseHours(row["hrs"].ToString());
+                     else
+                        regHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                  }
 
-               //if (row["code"].ToString().ToUpper() == ("OVERTIME")) {
+                  if (row["code"].ToString().ToUpper() == ("OVERTIME")) {
 
-               //   if(row["hrs"].ToString().Contains(':'))
-               //     otHrs = ParseHours(row["hrs"].ToString()); 
-               //   else
-               //      otHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                     if (row["hrs"].ToString().Contains(':'))
+                        otHrs = ParseHours(row["hrs"].ToString());
+                     else
+                        otHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
 
-               //      otPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
-               //}
+                     otPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+                  }
 
-               //if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DOUBLE")) {
-               //   dblOTHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-               //   dblOTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
-               //}
+                  if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DOUBLE")) {
+                     dblOTHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                     dblOTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+                  }
 
-               //if (row["code"].ToString().ToUpper().Contains("MEAL")) {
-               //   pnltyHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-               //   pnltyTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
-               //}
+                  if (row["code"].ToString().ToUpper().Contains("MEAL")) {
+                     pnltyHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                     pnltyTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+                  }
 
-               //if (row["code"].ToString().ToUpper().Contains("BONUS")) {
-               //   //  pnltyHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-               //   bonus = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
-               //}
+                  if (row["code"].ToString().ToUpper().Contains("BONUS")) {
+                     //  pnltyHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                     bonus = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+                  }
+               }
                #endregion
 
                if (!stubs.ContainsKey(identifier)) {
@@ -210,7 +222,7 @@ namespace LaborLens.SQL {
                   regHrs = regHrs,
                   regPay = regPay,
                   regRate = regRate, //regHrs > 0 ? regPay / regHrs : 0,//regRate,//
-                  bonus = bonus,
+                //  bonus = bonus,
                   //commissions = commissions,
                   otRate = otHrs != 0 ? otPay / otHrs : 0,
                   otHrs = otHrs,

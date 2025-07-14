@@ -414,50 +414,7 @@ namespace LaborLens {
       }
       #region notUpdated
 
-      public Dictionary<string, List<Timesheet>> PopulateTimesheets(Dictionary<string, List<PayStub>> stubs, Dictionary<string, List<Timecard>> timeCards)
-      {
-         Dictionary<string, List<Timesheet>> timesheets = new Dictionary<string, List<Timesheet>>();
-         double total = 0;
-         foreach (KeyValuePair<string, List<PayStub>> checks in stubs) {
-            timesheets[checks.Key] = new List<Timesheet>();
 
-            foreach (PayStub check in checks.Value) {
-               Timesheet sheet = new Timesheet();
-               sheet.stub = check;
-               totalSheets++;
-
-               if (timeCards.ContainsKey(checks.Key)) {
-                  foreach (Timecard card in timeCards[checks.Key]) {
-                     if (card.shiftDate.Value.Date < check.periodBegin)
-                        continue;
-                     else if (card.shiftDate.Value.Date > check.periodEnd)
-                        continue; //can be break if the cards are in order
-
-                     sheet.timeCards.Add(card);
-                  }
-
-                  sheet.AnalyzeDelunaHours(); //RUN ANALYSIS ON THE SHEET
-
-                  total += sheet.listedTotalHours;
-                  // if (sheet.mealMissedOrUnder30 > 0)
-                  //    mealMissedorUnder++;
-
-                  // double differnceHours = sheet.actualCombinedHours.TotalHours - (sheet.listedTotalHours);
-                  //if (Math.Abs(differnceHours) < .5)
-                  //   total += differnceHours;
-
-                  timesheets[checks.Key].Add(sheet);
-                  regPayTotal += check.regPay;
-                  regHrsTotal += check.regHrs;
-                  otHrsTotal += check.otHrs;
-                  otPayTotal += check.otPay;
-               } else
-                  throw new Exception("Empployee time cards not found");
-            }
-         }
-
-         return timesheets;
-      }
       #endregion
    }
 }
