@@ -311,9 +311,9 @@ namespace LaborLens {
          actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
 
          #region BI-Monthly
-            var vals = CalculateOTHoursBiMonthly(this);
-            actualOT = TimeSpan.FromHours(vals.overtimeHours);
-            actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
+            //var vals = CalculateOTHoursBiMonthly(this);
+            //actualOT = TimeSpan.FromHours(vals.overtimeHours);
+            //actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
          
          #endregion
 
