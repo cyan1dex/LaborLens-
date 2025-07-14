@@ -311,12 +311,10 @@ namespace LaborLens {
          actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
 
          #region BI-Monthly
-         if(this.stub.periodEnd.Value.Year < 2023) {
             var vals = CalculateOTHoursBiMonthly(this);
             actualOT = TimeSpan.FromHours(vals.overtimeHours);
             actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
-         }
-
+         
          #endregion
 
          double totalHours = timeCards.Sum(timecard => timecard.totalHrsActual.TotalHours);
