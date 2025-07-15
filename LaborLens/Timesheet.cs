@@ -183,71 +183,137 @@ namespace LaborLens {
          return false;
       }
 
-
       public (double regularHours, double overtimeHours, double doubleTimeHours) CalculateOTHoursBiMonthly(Timesheet timesheet)
       {
          double totalRegularHours = 0;
          double totalOvertimeHours = 0;
          double totalDoubleTimeHours = 0;
-         double weeklyRegularLimit = 40.0;
-         double dailyRegularLimit = 8.0;
-         double dailyOvertimeLimit = 12.0;
 
-         Dictionary<int, double> weeklyTotals = new Dictionary<int, double>(); // Week number -> total hours
-         Dictionary<int, int> weeklyWorkDays = new Dictionary<int, int>(); // Week number -> consecutive workdays
+         // Step 1: Find 7th consecutive day across entire bi-monthly period
+         var (seventhDayOT, seventhDayDT, seventhDayDate) = FindSeventhConsecutiveDay(timesheet.timeCards.ToList());
 
-         foreach (var timecard in timesheet.timeCards) {
-            // Determine the week number relative to the pay period
-            int weekNumber = GetWeekNumber(timesheet.periodBegin.Value, timecard.shiftDate.Value);
+         // Step 2: Group by workweek (Sunday to Saturday)
+         var weeks = timesheet.timeCards
+             .GroupBy(tc => GetWorkweekStartDate(tc.shiftDate.Value))
+             .ToList();
 
-            // Initialize weekly tracking if not present
-            if (!weeklyTotals.ContainsKey(weekNumber)) {
-               weeklyTotals[weekNumber] = 0;
-               weeklyWorkDays[weekNumber] = 0;
+         foreach (var week in weeks) {
+            var dailyTotals = week
+                .GroupBy(tc => tc.shiftDate.Value.Date)
+                .ToDictionary(g => g.Key, g => g.Sum(tc => tc.totalHrsActual.TotalHours));
+
+            double weekTotalHours = dailyTotals.Values.Sum();
+
+            // Step 3: Calculate daily overtime and double-time for each day
+            double weekDailyOT = 0;
+            double weekDailyDT = 0;
+            double weekStraightHours = 0;
+
+            foreach (var kvp in dailyTotals) {
+               var date = kvp.Key;
+               var dailyHours = kvp.Value;
+
+               // Handle 7th consecutive day separately
+               if (seventhDayDate.HasValue && date.Date == seventhDayDate.Value.Date) {
+                  // 7th consecutive day: ALL hours are premium
+                  // First 8 hours = OT (1.5x), Hours 8+ = DT (2x)
+                  // Don't add to regular daily calculations
+                  continue;
+               }
+
+               // Regular daily overtime calculation
+               if (dailyHours > 12.0) {
+                  weekStraightHours += 8.0;               // Hours 1-8: straight time
+                  weekDailyOT += 4.0;                     // Hours 9-12: overtime
+                  weekDailyDT += dailyHours - 12.0;       // Hours 13+: double time
+               } else if (dailyHours > 8.0) {
+                  weekStraightHours += 8.0;               // Hours 1-8: straight time
+                  weekDailyOT += dailyHours - 8.0;        // Hours 9+: overtime
+               } else {
+                  weekStraightHours += dailyHours;        // All hours: straight time
+               }
             }
 
-            weeklyWorkDays[weekNumber]++;
-            double hoursWorked = timecard.totalHrsActual.TotalHours;
+            // Step 4: Calculate weekly overtime using anti-pyramiding rule
+            // Weekly OT applies when straight-time hours exceed 40
+            double weeklyOT = Math.Max(0.0, weekStraightHours - 40.0);
 
-            // Apply 7th Consecutive Day Rule
-            if (weeklyWorkDays[weekNumber] == 7) {
-               double seventhDayOvertime = Math.Min(hoursWorked, 8.0);
-               double seventhDayDoubleTime = Math.Max(0, hoursWorked - 8.0);
-               totalOvertimeHours += seventhDayOvertime;
-               totalDoubleTimeHours += seventhDayDoubleTime;
-               continue;
-            }
+            // Step 5: Calculate regular hours for this week (max 40)
+            double weekRegularHours = Math.Min(40.0, weekStraightHours);
 
-            double dailyRegularHours = Math.Min(hoursWorked, dailyRegularLimit);
-            double dailyOvertimeHours = 0;
-            double dailyDoubleTimeHours = 0;
-
-            if (hoursWorked > dailyRegularLimit) {
-               dailyOvertimeHours = Math.Min(hoursWorked - dailyRegularLimit, dailyOvertimeLimit - dailyRegularLimit);
-               dailyDoubleTimeHours = Math.Max(0, hoursWorked - dailyOvertimeLimit);
-            }
-
-            // Weekly Regular Hours Cap
-            if (weeklyTotals[weekNumber] < weeklyRegularLimit) {
-               double availableWeeklyRegularHours = weeklyRegularLimit - weeklyTotals[weekNumber];
-               double regularAllocation = Math.Min(dailyRegularHours, availableWeeklyRegularHours);
-               totalRegularHours += regularAllocation;
-               dailyRegularHours -= regularAllocation;
-            }
-
-            // Remaining daily regular hours go to overtime
-            totalOvertimeHours += dailyRegularHours;
-
-            // Add overtime and double time
-            totalOvertimeHours += dailyOvertimeHours;
-            totalDoubleTimeHours += dailyDoubleTimeHours;
-
-            // Update weekly totals
-            weeklyTotals[weekNumber] += hoursWorked;
+            // Add week totals to running totals
+            totalRegularHours += weekRegularHours;
+            totalOvertimeHours += weekDailyOT + weeklyOT;
+            totalDoubleTimeHours += weekDailyDT;
          }
+
+         // Step 6: Add 7th consecutive day overtime (calculated once for entire period)
+         totalOvertimeHours += seventhDayOT;
+         totalDoubleTimeHours += seventhDayDT;
 
          return (totalRegularHours, totalOvertimeHours, totalDoubleTimeHours);
       }
+
+      /// <summary>
+      /// Finds the 7th consecutive day across the entire timesheet according to California law
+      /// </summary>
+      private static (double ot, double dt, DateTime? seventhDay) FindSeventhConsecutiveDay(List<Timecard> timecards)
+      {
+         // Get unique work days in chronological order across entire timesheet
+         var workDays = timecards
+             .Select(t => t.shiftDate.Value.Date)
+             .Distinct()
+             .OrderBy(d => d)
+             .ToList();
+
+         // Need at least 7 days to have 7 consecutive
+         if (workDays.Count < 7)
+            return (0.0, 0.0, null);
+
+         // Find the first occurrence of 7 consecutive days worked
+         for (int i = 0; i <= workDays.Count - 7; i++) {
+            bool isConsecutive = true;
+
+            // Check if 7 days starting at index i are consecutive
+            for (int j = 0; j < 6; j++) {
+               if ((workDays[i + j + 1] - workDays[i + j]).Days != 1) {
+                  isConsecutive = false;
+                  break;
+               }
+            }
+
+            if (isConsecutive) {
+               // The 7th day in the sequence
+               DateTime seventhDay = workDays[i + 6];
+
+               // Get total hours worked on the 7th day
+               var seventhDayHours = timecards
+                   .Where(t => t.shiftDate.Value.Date == seventhDay)
+                   .Sum(t => t.totalHrsActual.TotalHours);
+
+               // California 7th consecutive day rules:
+               // - First 8 hours: overtime rate (1.5x)
+               // - Hours beyond 8: double time rate (2x)
+               double otHours = Math.Min(8.0, seventhDayHours);
+               double dtHours = Math.Max(0.0, seventhDayHours - 8.0);
+
+               return (otHours, dtHours, seventhDay);
+            }
+         }
+
+         return (0.0, 0.0, null);
+      }
+
+      /// <summary>
+      /// Gets the start date of the workweek containing the given date
+      /// In California, the workweek is Sunday through Saturday
+      /// </summary>
+      private static DateTime GetWorkweekStartDate(DateTime date)
+      {
+         int daysToSubtract = (int)date.DayOfWeek;
+         return date.Date.AddDays(-daysToSubtract); // Sunday start
+      }
+
 
       private static int GetWeekNumber(DateTime periodBegin, DateTime date)
       {
@@ -306,15 +372,15 @@ namespace LaborLens {
          }
          #endregion
 
-         var overtime = CalculateOvertime(timeCards);
-         actualOT = TimeSpan.FromHours(overtime.OvertimeHours);
-         actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
+         //var overtime = CalculateOvertime(timeCards);
+         //actualOT = TimeSpan.FromHours(overtime.OvertimeHours);
+         //actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
 
          #region BI-Monthly
-            //var vals = CalculateOTHoursBiMonthly(this);
-            //actualOT = TimeSpan.FromHours(vals.overtimeHours);
-            //actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
-         
+         var vals = CalculateOTHoursBiMonthly(this);
+         actualOT = TimeSpan.FromHours(vals.overtimeHours);
+         actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
+
          #endregion
 
          double totalHours = timeCards.Sum(timecard => timecard.totalHrsActual.TotalHours);
@@ -436,15 +502,7 @@ namespace LaborLens {
          return result;
       }
 
-      /// <summary>
-      /// Gets the start date of the workweek containing the given date
-      /// In California, the workweek is Sunday through Saturday
-      /// </summary>
-      private static DateTime GetWorkweekStartDate(DateTime date)
-      {
-         int daysToSubtract = (int)date.DayOfWeek;
-         return date.Date.AddDays(-daysToSubtract); // Sunday start
-      }
+
 
       /// <summary>
       /// California 7th consecutive day rule:
