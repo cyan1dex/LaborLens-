@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string dbName = "Estrada";
+      public static string dbName = "Chinchilla";
 
       static void Main(string[] args)
       {
@@ -40,7 +40,7 @@ namespace LaborLens {
         //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
         //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
-         //new ExcelWriter().WriteTimecardsFlat(empCards);
+        // new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
          #region write Data
          //using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\CODICI\Desktop\output.txt", true)) {
@@ -58,7 +58,7 @@ namespace LaborLens {
          var stubdata = new SQL.SQLRepository().GetPaydata(dbName);
          var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
-        // Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
+         // Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          // var stubdata2 = new SQL.SQLRepository().GetPaydata2(dbName);
          // stubs = new SQL.SQLRepository().ConvertPayDataToDict2(stubs, stubdata2);
 
@@ -69,9 +69,9 @@ namespace LaborLens {
          #endregion
          #endregion
          #region Rest Breaks Analysis
-         //var analyzer = new RestPeriodAnalyzer();
-         //var results = analyzer.AnalyzeEmployeeRestPeriods(empCards);
-         // var summary = analyzer.GenerateRestPeriodSummary(results);
+       //  var analyzer = new RestPeriodAnalyzer();
+       //  var results = analyzer.AnalyzeEmployeeRestPeriods(empCards);
+       //  var summary = analyzer.GenerateRestPeriodSummary(results);
          #endregion
          #region ADP PDF to CSV Parser
          //ADPParser adpParser = new ADPParser();
@@ -125,13 +125,13 @@ namespace LaborLens {
 
          #region PAGA ANALYSIS (timesheets without stubs)
          ///////////Create timesheets from payperiod dates, only if there are timecards available (not stubs needed --> good in case they were not provided)
-         //Paga p = new Paga(Globals.pagaInitDt, Globals.pagaEndDt); //Create 1st to 15th, then remaining part of the month
-         Paga p = new Paga(Globals.pagaInitDt, Globals.pagaEndDt, 14); //Use this one to calculate at 14 or 7 days apart
+         Paga p = new Paga(Globals.pagaInitDt, Globals.pagaEndDt); //Create 1st to 15th, then remaining part of the month
+        // Paga p = new Paga(Globals.pagaInitDt, Globals.pagaEndDt, 14); //Use this one to calculate at 14 or 7 days apart
 
          //////These timesheets do not have the paystubs, since some could be missing//////////////////////////
          Dictionary<string, List<Timesheet>> timesheetsWithoutStubs = p.PopulatePeriods(empCards);
 
-         // new ExcelWriter().WritePagaViolations(timesheetsWithoutStubs, p.periods);
+      //    new ExcelWriter().WritePagaViolations(timesheetsWithoutStubs, p.periods);
 
          ////////Create PAGA penalty for the months//////////////////////
          var pagaData = new PayPeriods();
@@ -143,8 +143,11 @@ namespace LaborLens {
          #region Populate Timesheets
          var timeSheets = new PayPeriods().PopulateADPTimesheets(stubs, empCards); //MUST DO FOR PAY PERIODS    
          analysis.PeriodAnalysis(timeSheets); //Get Period analysis
-         new PayPeriods().CalculatePagaPeriods(timeSheets, Globals.pagaInitDt); //Use the PAGA start date, populate using Sheets w/o stubs
+          new PayPeriods().CalculatePagaPeriods(timeSheets, Globals.pagaInitDt); //Use the PAGA start date, populate using Sheets w/o stubs
+
          #endregion
+
+         analysis.UnpaidOvertime(timeSheets);
 
          #region Rounding
 
@@ -167,13 +170,13 @@ namespace LaborLens {
          analysis.mealsTaken = Shift.totalMeals;
          analysis.shift8 = Shift.shiftIs8;
 
-         new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis);
+        // new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis);
          #endregion
 
          #region Salary analysis
-         //   new ExcelWriter().PoulateRoster(rosterResults);
-         //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
-         //   new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
+         // new ExcelWriter().PoulateRoster(rosterResults);
+        //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
+        //  new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
 
          //double totalHrs = 0;
          //double cnt = 0;

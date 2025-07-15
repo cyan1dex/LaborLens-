@@ -82,6 +82,81 @@ namespace LaborLens {
          PaymentAnalysis();
       }
 
+
+      public void UnpaidOvertime(Dictionary<string, List<Timesheet>> empSheets)
+      {
+         int affectedEmployees = 0;
+         int affectedPayPeriods = 0;
+         double totalUnpaidOTHours = 0.0;
+         double totalUnpaidDTHours = 0.0;
+
+         var employeesWithUnderpayment = new HashSet<string>();
+         int totalPeriods = 0;
+
+         foreach (KeyValuePair<string, List<Timesheet>> entry in empSheets) {
+            string employeeId = entry.Key;
+            List<Timesheet> timesheets = entry.Value;
+
+            foreach (Timesheet sheet in timesheets) {
+               // Get actual values that are already calculated and stored in timesheet
+               double actualTotalHours = sheet.actualTotalHours;
+               double actualOTHours = Math.Round(sheet.actualOT.TotalHours,1);
+               double actualDTHours = Math.Round(sheet.actualDblOT.TotalHours, 1);
+
+               // Get paystub values
+               PayStub stub = sheet.stub;
+               double stubTotalHours = stub.regHrs + stub.otHrs + stub.doubleOtHrs;
+               double stubOTHours = Math.Round(stub.otHrs, 1);
+               double stubDTHours = Math.Round(stub.doubleOtHrs, 1);
+
+               // Check if total hours are within 0.25 tolerance
+               if (Math.Abs(actualTotalHours - stubTotalHours) <= 0.25) {
+
+                  totalPeriods++;
+                  // Calculate underpayment (actual should be >= stub, so underpayment is positive)
+                  double otUnderpayment = Math.Max(0, actualOTHours - stubOTHours);
+                  double dtUnderpayment = Math.Max(0, actualDTHours - stubDTHours);
+
+                  // If there's any underpayment, count this pay period
+                  if (otUnderpayment > 0 || dtUnderpayment > 0) {
+                     affectedPayPeriods++;
+                     totalUnpaidOTHours += otUnderpayment;
+                     totalUnpaidDTHours += dtUnderpayment;
+
+                     // Track this employee (use HashSet to avoid duplicates)
+                     employeesWithUnderpayment.Add(employeeId);
+
+                     // Optional: Log details for debugging
+                     Console.WriteLine($"Employee {employeeId}, Period {sheet.periodBegin:MM/dd/yyyy}-{sheet.periodEnd:MM/dd/yyyy}:");
+                     Console.WriteLine($"  Total Hours - Actual: {actualTotalHours:F2}, Stub: {stubTotalHours:F2}");
+                     Console.WriteLine($"  OT Hours - Actual: {actualOTHours:F2}, Stub: {stubOTHours:F2}, Underpaid: {otUnderpayment:F2}");
+                     Console.WriteLine($"  DT Hours - Actual: {actualDTHours:F2}, Stub: {stubDTHours:F2}, Underpaid: {dtUnderpayment:F2}");
+                     Console.WriteLine();
+                  }
+               } else {
+                  // Optional: Log when total hours don't match
+                  Console.WriteLine($"Skipping Employee {employeeId} - Total hours mismatch: Actual {actualTotalHours:F2} vs Stub {stubTotalHours:F2}");
+               }
+            }
+         }
+
+         // Get final count of affected employees
+         affectedEmployees = employeesWithUnderpayment.Count;
+
+         // Output final results
+         Console.WriteLine("=== UNPAID OVERTIME ANALYSIS RESULTS ===");
+         Console.WriteLine($"Affected Employees: {affectedEmployees}");
+         Console.WriteLine($"Affected Pay Periods: {affectedPayPeriods}");
+         Console.WriteLine($"Total Unpaid Overtime Hours: {totalUnpaidOTHours:F2}");
+         Console.WriteLine($"Total Unpaid Double-Time Hours: {totalUnpaidDTHours:F2}");
+         Console.WriteLine($"Total Unpaid Premium Hours: {(totalUnpaidOTHours + totalUnpaidDTHours):F2}");
+
+         // Optional: Calculate monetary impact (if you have hourly rates)
+         // Console.WriteLine($"Estimated Unpaid OT Pay (at $25/hr base): ${(totalUnpaidOTHours * 25 * 1.5):F2}");
+         // Console.WriteLine($"Estimated Unpaid DT Pay (at $25/hr base): ${(totalUnpaidDTHours * 25 * 2.0):F2}");
+      }
+
+
       public int PeriodAnalysis(Dictionary<string, List<Timesheet>> empSheets)
       {
          int total = 0;
