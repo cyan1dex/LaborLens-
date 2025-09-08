@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlTypes;
 using System.Linq;
+using System.Runtime.InteropServices;
 using static LaborLens.DataProcessor;
 
 
@@ -126,14 +127,48 @@ namespace LaborLens {
          //xlWorkBook.Save();
 
          // xlWorkBook.SaveAs(newPath, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookDefault, Type.Missing, Type.Missing, true, false, XlSaveAsAccessMode.xlNoChange, XlSaveConflictResolution.xlLocalSessionChanges, Type.Missing, Type.Missing);
-         xlWorkBook.Close(true, Path.Combine(currentDir, "PaySummary.xlsx") , misValue);
-         xlApp.Quit();
+         SaveAndClose(xlApp, xlWorkBook, xlWorkSheet, System.IO.Path.Combine(currentDir, "PaySummary.xlsx"));
+
 
          releaseObject(xlWorkSheet);
          releaseObject(xlWorkBook);
          releaseObject(xlApp);
 
          #endregion
+      }
+
+      void SaveAndClose(Microsoft.Office.Interop.Excel.Application xlApp, Workbook xlWorkBook, Worksheet xlWorkSheet, string outPath)
+      {
+         // make sure folder exists
+         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outPath));
+
+         // avoid UI prompts
+         xlApp.DisplayAlerts = false;
+
+         try {
+            // Save explicitly with correct format for .xlsx
+            xlWorkBook.SaveAs(
+                Filename: outPath,
+                FileFormat: XlFileFormat.xlOpenXMLWorkbook, // .xlsx
+                AccessMode: XlSaveAsAccessMode.xlNoChange);
+
+            // Close without resave (already saved above)
+            xlWorkBook.Close(SaveChanges: false);
+         } finally {
+            // Release COM in strict order
+            if (xlWorkSheet != null) Marshal.ReleaseComObject(xlWorkSheet);
+            if (xlWorkBook != null) Marshal.ReleaseComObject(xlWorkBook);
+            if (xlApp != null) {
+               xlApp.Quit();
+               Marshal.ReleaseComObject(xlApp);
+            }
+
+            // Finalize RCWs
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+         }
       }
 
       public void PoulateRoster(Dictionary<string, EmployeeDateRanges> dateRanges)
