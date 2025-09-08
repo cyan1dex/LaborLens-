@@ -376,7 +376,7 @@ namespace LaborLens {
          #endregion
 
          #region Excel Close/Release Doc
-         xlWorkBook.Close(true, Path.Combine(currentDir, Program.dbName + " Analysis") , misValue);
+         xlWorkBook.Close(true, Path.Combine(currentDir, Program.project + " Analysis") , misValue);
          xlApp.Quit();
 
          releaseObject(xlWorkSheet);

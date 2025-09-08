@@ -13,15 +13,22 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string dbName = "Chinchilla";
+      public static string project = "Tree";
 
       static void Main(string[] args)
       {
          string currentDir = AppDomain.CurrentDomain.BaseDirectory;
 
-         if (!currentDir.ToUpper().Contains(dbName.ToUpper())) {
+         if (!currentDir.ToUpper().Contains(project.ToUpper())) {
             throw new Exception("DB in use is not correct");
          }
+
+         var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
+
+        var importer = new TimecardImporter(connString);
+         importer.ImportExcel(@"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\Nader Law Group\Professional Tree Company\timecards.xlsx", project); 
+         var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
+         var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
          #region one time ingestion of Timedata from PDFs if needed
          //Ingest TNA1
@@ -33,14 +40,14 @@ namespace LaborLens {
          #endregion
 
          #region SQL Data Parser - Timecards
-         var timecards = new SQL.SQLRepository().GetTimecards(dbName);
-         var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
+      //   var timecards = new SQL.SQLRepository().GetTimecards(dbName);
+       //  var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
         //  var empCards = new Dictionary<string, List<Timecard>>();
         //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
         //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
-        // new ExcelWriter().WriteTimecardsFlat(empCards);
+         new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
          #region write Data
          //using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\CODICI\Desktop\output.txt", true)) {
@@ -55,7 +62,7 @@ namespace LaborLens {
          //}
          #endregion
          #region SQL Pay Parser
-         var stubdata = new SQL.SQLRepository().GetPaydata(dbName);
+         var stubdata = new SQL.SQLRepository().GetPaydata(project);
          var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
          // Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();

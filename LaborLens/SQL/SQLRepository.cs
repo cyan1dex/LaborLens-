@@ -8,10 +8,16 @@ namespace LaborLens.SQL {
    class SQLRepository {
 
       int duplicates = 0;
-      /// <summary>
-      /// PeyKar
-      /// </summary>
-      /// <returns></returns>
+
+      public DataTable GetStagingTimecards(string project)
+      {
+         var storedProcedure = new StoredProcedure();
+         storedProcedure.StoredProcedureName = "Staging" + ".dbo" + ".[Timecards_GetShifts]";
+         storedProcedure.Parameters.Add(new StoredProcedureParameter("@ProjectKey", ParameterType.DBNvar, project));
+         DataTable result = storedProcedure.ExecuteDataSet();
+         return result;
+      }
+
       public DataTable GetTimecards(string dbName)
       {
          var storedProcedure = new StoredProcedure();
@@ -794,7 +800,7 @@ namespace LaborLens.SQL {
                currentID = identifier;
 
             #region for testing
-            if (identifier.Trim() == "ZELADA. SAMANTHA" && currentDate.Year == 2020 && currentDate.Month == 4 && currentDate.Day == 13) {
+            if (identifier.Trim() == "IA" && currentDate.Year == 2020 && currentDate.Month == 9 && currentDate.Day == 30) {
                // && currentDate.Year == 2020 && currentDate.Month == 4 && currentDate.Day == 1) {
                int pause = 0;
             }
