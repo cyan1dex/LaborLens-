@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string project = "Tree";
+      public static string project = "TNT";
 
       static void Main(string[] args)
       {
@@ -25,8 +25,19 @@ namespace LaborLens {
 
          var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
 
-        var importer = new TimecardImporter(connString);
-         importer.ImportExcel(@"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\Nader Law Group\Professional Tree Company\timecards.xlsx", project); 
+         var importer = new TimecardImporter(connString);
+
+         string dir = @"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\PLG\Hernandez v. TNT Transportation\data";
+         //get all the paths of files with the name time in a directory
+         var paths = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                              .Where(p => Path.GetFileName(p)
+                                  .IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0)
+                              .ToList();
+
+         foreach (var path in paths) {
+            importer.ImportExcel(path, project);
+         }
+
          var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
          var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
