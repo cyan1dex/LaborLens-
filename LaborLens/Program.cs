@@ -23,23 +23,21 @@ namespace LaborLens {
             throw new Exception("DB in use is not correct");
          }
 
-         var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
+         #region timecard importer
+         //var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
+         //var importer = new TimecardImporter(connString);
 
-         var importer = new TimecardImporter(connString);
+         //string dir = @"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\PLG\Hernandez v. TNT Transportation\data";
+         ////get all the paths of files with the name time in a directory
+         //var paths = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+         //                     .Where(p => Path.GetFileName(p)
+         //                         .IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0)
+         //                     .ToList();
 
-         string dir = @"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\PLG\Hernandez v. TNT Transportation\data";
-         //get all the paths of files with the name time in a directory
-         var paths = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-                              .Where(p => Path.GetFileName(p)
-                                  .IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0)
-                              .ToList();
-
-         foreach (var path in paths) {
-            importer.ImportExcel(path, project);
-         }
-
-         var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
-         var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
+         //foreach (var path in paths) {
+         //   importer.ImportExcel(path, project);
+         //}
+         #endregion
 
          #region one time ingestion of Timedata from PDFs if needed
          //Ingest TNA1
@@ -51,12 +49,12 @@ namespace LaborLens {
          #endregion
 
          #region SQL Data Parser - Timecards
-      //   var timecards = new SQL.SQLRepository().GetTimecards(dbName);
-       //  var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
+         var timecards = new SQL.SQLRepository().GetTimecards(project);
+         var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
-        //  var empCards = new Dictionary<string, List<Timecard>>();
-        //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
-        //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
+         //  var empCards = new Dictionary<string, List<Timecard>>();
+         //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
+         //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
          new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
