@@ -49,7 +49,7 @@ namespace LaborLens {
          #endregion
 
          #region SQL Data Parser - Timecards
-         var timecards = new SQL.SQLRepository().GetTimecards(project);
+         var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
          var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
          //  var empCards = new Dictionary<string, List<Timecard>>();
