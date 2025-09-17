@@ -40,10 +40,10 @@ namespace LaborLens {
                int colEmp = Find(headers, new[] { "id", "eid", "filenumber", "employeeid", "emp","name" ,"positionid"}, true);
                int colDate = Find(headers, new[] { "shiftdate", "date", "workdate", "shift_date" }, false);
 
-               int colHours = Find(headers, new[] { "total", "reg_hrs", "regularhours", "hours" ,"ListedHrs","actualhours"}, false);
+               int colHours = Find(headers, new[] { "total", "reg_hrs", "regularhours", "hours" ,"ListedHrs","actualhours", "EarnHours","hrs" }, false);
 
-               var inCols = FindIndexed(headers, new[] { "timein", "in", "clockin", "start" ,"time_in", "ActualPunchInTime" });
-               var outCols = FindIndexed(headers, new[] { "timeout", "out", "clockout", "end","time_out", "ActualPunchOutTime" });
+               var inCols = FindIndexed(headers, new[] { "timein", "in", "clockin", "start" ,"time_in", "ActualPunchInTime", "InPunchTime" });
+               var outCols = FindIndexed(headers, new[] { "timeout", "out", "clockout", "end","time_out", "ActualPunchOutTime", "OutPunchTime" });
 
                int rowNum = 1; // after header
                while (reader.Read()) {

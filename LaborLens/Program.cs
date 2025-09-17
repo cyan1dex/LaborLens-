@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string project = "TNT";
+      public static string project = "Keisha";
 
       static void Main(string[] args)
       {
@@ -27,9 +27,9 @@ namespace LaborLens {
          //var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
          //var importer = new TimecardImporter(connString);
 
-         //string dir = @"C:\Users\CYAN1\OneDrive\Desktop\Law Cases\PLG\Hernandez v. TNT Transportation\data";
+         //string projectDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".."));
          ////get all the paths of files with the name time in a directory
-         //var paths = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+         //var paths = Directory.EnumerateFiles(projectDir, "*", SearchOption.AllDirectories)
          //                     .Where(p => Path.GetFileName(p)
          //                         .IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0)
          //                     .ToList();
@@ -56,7 +56,7 @@ namespace LaborLens {
          //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
          //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
-         new ExcelWriter().WriteTimecardsFlat(empCards);
+         //new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
          #region write Data
          //using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\CODICI\Desktop\output.txt", true)) {
@@ -71,10 +71,10 @@ namespace LaborLens {
          //}
          #endregion
          #region SQL Pay Parser
-         var stubdata = new SQL.SQLRepository().GetPaydata(project);
-         var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
+         //var stubdata = new SQL.SQLRepository().GetPaydata(project);
+        // var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
-         // Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
+          Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          // var stubdata2 = new SQL.SQLRepository().GetPaydata2(dbName);
          // stubs = new SQL.SQLRepository().ConvertPayDataToDict2(stubs, stubdata2);
 
@@ -186,7 +186,7 @@ namespace LaborLens {
          analysis.mealsTaken = Shift.totalMeals;
          analysis.shift8 = Shift.shiftIs8;
 
-        // new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis);
+         new ExcelWriter().PoulateGraphData(shifts, empCards.Count, pagaData, over35, analysis);
          #endregion
 
          #region Salary analysis
