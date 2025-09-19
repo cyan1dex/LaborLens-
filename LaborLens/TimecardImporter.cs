@@ -37,7 +37,7 @@ namespace LaborLens {
                if (!reader.Read()) continue; // header row
                var headers = ReadHeaders(reader);
 
-               int colEmp = Find(headers, new[] { "id", "eid", "filenumber", "employeeid", "emp","name" ,"positionid"}, true);
+               int colEmp = Find(headers, new[] { "id", "eid", "filenumber", "employeeid", "emp","name" ,"positionid"}, false);
                int colDate = Find(headers, new[] { "shiftdate", "date", "workdate", "shift_date" }, false);
 
                int colHours = Find(headers, new[] { "total", "reg_hrs", "regularhours", "hours" ,"ListedHrs","actualhours", "EarnHours","hrs" }, false);
