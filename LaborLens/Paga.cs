@@ -123,88 +123,178 @@ namespace LaborLens {
 
       public Dictionary<string, List<Timesheet>> PopulatePeriods(Dictionary<string, List<Timecard>> timeCards)
       {
-         Dictionary<string, List<Timesheet>> timesheets = new Dictionary<string, List<Timesheet>>();
+         var timesheets = new Dictionary<string, List<Timesheet>>();
+         if (timeCards == null || timeCards.Count == 0) return timesheets;
+
+         var periodsStarts = periods?.ToArray() ?? Array.Empty<Period>();
+         if (periodsStarts.Length == 0) return timesheets;
 
          for (int empPos = 0; empPos < timeCards.Count; empPos++) {
+            var employeeCards = timeCards.ElementAt(empPos).Value;
+            if (employeeCards == null || employeeCards.Count == 0) continue;
 
-            if (timeCards.ElementAt(empPos).Value.Count == 0)
-               continue;
+            // sort by date
+            employeeCards = employeeCards.OrderBy(x => x.shiftDate).ToList();
 
-            Timesheet sheet = new Timesheet() { identifier = timeCards.ElementAt(empPos).Key };
-            Period[] periodsStarts = periods.ToArray();
-
-            #region sort timecards
-            var employee = timeCards.ElementAt(empPos).Value;
-            employee = employee.OrderBy(x => x.shiftDate).ToList();
-            #endregion
-
+            // find first period that can contain the first card
             int position = 0;
-            // Timecard card = timeCards.ElementAt(empPos).Value[0];
-            Timecard card = employee[0];
-
-            string id = card.identifier;
-
-            if (id == "J5R009207") {
-               int p = 0;
-            }
-            bool added = false;
-            bool changed = false;
-
-            while (card.shiftDate.Value.Date > periodsStarts[position].end.Date && position < periodsStarts.Count() - 1) //while the date is greater than the current date, move to next position
+            var firstCard = employeeCards[0];
+            while (position < periodsStarts.Length - 1 &&
+                   firstCard.shiftDate.HasValue &&
+                   firstCard.shiftDate.Value.Date > periodsStarts[position].end.Date) {
                position++;
+            }
 
+            // working sheet for the current period
+            var sheet = new Timesheet { identifier = timeCards.ElementAt(empPos).Key };
             sheet.periodBegin = periodsStarts[position].start;
             sheet.periodEnd = periodsStarts[position].end;
 
+            bool addedAnyInThisPeriod = false; // <- TRUE only when we actually add a card
 
-            for (int pos = 0; pos < employee.Count; pos++) {
-               card = employee[pos];
+            for (int i = 0; i < employeeCards.Count; i++) {
+               var card = employeeCards[i];
+               if (card?.shiftDate == null) continue;
 
-               if (position >= periodsStarts.Count())
-                  break;
+               // if current card is after current period, advance periods until it fits
+               while (position < periodsStarts.Length &&
+                      card.shiftDate.Value.Date > periodsStarts[position].end.Date) {
+                  // If we had cards in the current period, emit the sheet for that period
+                  if (addedAnyInThisPeriod) {
+                     if (!timesheets.ContainsKey(sheet.identifier))
+                        timesheets[sheet.identifier] = new List<Timesheet>();
 
-               if (card.shiftDate <= periodsStarts[position].end) {//if current card is lte than end, than its in range
+                     timesheets[sheet.identifier].Add(sheet);
+                     sheet.CalculateNonStub();
 
-                  if (card.totalHrsActual.TotalHours > 6)
-                     sheet.timeCards.Add(card);
-                  added = true;
-               } else {
-                  while (position < periodsStarts.Count() && card.shiftDate > periodsStarts[position].end) {
-                     position++;
-                     changed = true;
+                     // start a new sheet for the next period
+                     sheet = new Timesheet { identifier = sheet.identifier };
+                     addedAnyInThisPeriod = false;
                   }
-               }
 
-               if (added && changed) {
-                  if (!timesheets.ContainsKey(sheet.identifier))
-                     timesheets[sheet.identifier] = new List<Timesheet>();
+                  // advance to next period window
+                  position++;
+                  if (position >= periodsStarts.Length) break;
 
-                  timesheets[sheet.identifier].Add(sheet);
-                  sheet.CalculateNonStub();
-                  sheet = new Timesheet() { identifier = sheet.identifier };
+                  // update the working sheet’s period window
                   sheet.periodBegin = periodsStarts[position].start;
                   sheet.periodEnd = periodsStarts[position].end;
-                  sheet.timeCards.Add(card);
-                  added = false;
-                  changed = false;
                }
 
+               if (position >= periodsStarts.Length) break;
+
+               // If card is within current period window, add it (only if it meets your hours rule)
+               if (card.shiftDate.Value.Date >= periodsStarts[position].start.Date &&
+                   card.shiftDate.Value.Date <= periodsStarts[position].end.Date) {
+                  // your rule: only keep cards with > 6 actual hours
+                  if (card.totalHrsActual.TotalHours > 6) {
+                     sheet.timeCards.Add(card);
+                     addedAnyInThisPeriod = true; // <- set TRUE only when we actually added
+                  }
+                  // else: do nothing; DO NOT flip addedAnyInThisPeriod
+               }
+               // else (card before current period) cannot happen due to sorting & initial positioning
             }
 
-            if (added && changed == false) {
+            // flush the last period only if it has cards
+            if (addedAnyInThisPeriod) {
                if (!timesheets.ContainsKey(sheet.identifier))
                   timesheets[sheet.identifier] = new List<Timesheet>();
 
                timesheets[sheet.identifier].Add(sheet);
                sheet.CalculateNonStub();
-            } else {
-               int pause = 0;
             }
-
-            //sheet.Analyze();
          }
 
          return timesheets;
       }
+
+
+
+      //public Dictionary<string, List<Timesheet>> PopulatePeriods(Dictionary<string, List<Timecard>> timeCards)
+      //{
+      //   Dictionary<string, List<Timesheet>> timesheets = new Dictionary<string, List<Timesheet>>();
+
+      //   for (int empPos = 0; empPos < timeCards.Count; empPos++) {
+
+      //      if (timeCards.ElementAt(empPos).Value.Count == 0)
+      //         continue;
+
+      //      Timesheet sheet = new Timesheet() { identifier = timeCards.ElementAt(empPos).Key };
+      //      Period[] periodsStarts = periods.ToArray();
+
+      //      #region sort timecards
+      //      var employee = timeCards.ElementAt(empPos).Value;
+      //      employee = employee.OrderBy(x => x.shiftDate).ToList();
+      //      #endregion
+
+      //      int position = 0;
+      //      // Timecard card = timeCards.ElementAt(empPos).Value[0];
+      //      Timecard card = employee[0];
+
+      //      string id = card.identifier;
+
+      //      if (id == "J5R009207") {
+      //         int p = 0;
+      //      }
+      //      bool added = false;
+      //      bool changed = false;
+
+      //      while (card.shiftDate.Value.Date > periodsStarts[position].end.Date && position < periodsStarts.Count() - 1) //while the date is greater than the current date, move to next position
+      //         position++;
+
+      //      sheet.periodBegin = periodsStarts[position].start;
+      //      sheet.periodEnd = periodsStarts[position].end;
+
+
+      //      for (int pos = 0; pos < employee.Count; pos++) {
+      //         card = employee[pos];
+
+      //         if (position >= periodsStarts.Count())
+      //            break;
+
+      //         if (card.shiftDate <= periodsStarts[position].end) {//if current card is lte than end, than its in range
+
+      //            if (card.totalHrsActual.TotalHours > 6)
+      //               sheet.timeCards.Add(card);
+      //            added = true;
+      //         } else {
+      //            while (position < periodsStarts.Count() && card.shiftDate > periodsStarts[position].end) {
+      //               position++;
+      //               changed = true;
+      //            }
+      //         }
+
+      //         if (added && changed) {
+      //            if (!timesheets.ContainsKey(sheet.identifier))
+      //               timesheets[sheet.identifier] = new List<Timesheet>();
+
+      //            timesheets[sheet.identifier].Add(sheet);
+      //            sheet.CalculateNonStub();
+      //            sheet = new Timesheet() { identifier = sheet.identifier };
+      //            sheet.periodBegin = periodsStarts[position].start;
+      //            sheet.periodEnd = periodsStarts[position].end;
+      //            sheet.timeCards.Add(card);
+      //            added = false;
+      //            changed = false;
+      //         }
+
+      //      }
+
+      //      if (added && changed == false) {
+      //         if (!timesheets.ContainsKey(sheet.identifier))
+      //            timesheets[sheet.identifier] = new List<Timesheet>();
+
+      //         timesheets[sheet.identifier].Add(sheet);
+      //         sheet.CalculateNonStub();
+      //      } else {
+      //         int pause = 0;
+      //      }
+
+      //      //sheet.Analyze();
+      //   }
+
+      //   return timesheets;
+      //}
    }
 }
