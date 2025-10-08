@@ -164,7 +164,7 @@ namespace LaborLens {
       private static Dictionary<int, int> FindIndexed(string[] header, IEnumerable<string> bases)
       {
          var baseSet = new HashSet<string>(bases.Select(Norm));
-         var rx = new Regex(@"^(?<base>[a-z]+?)(?<idx>\d+)?$");
+         var rx = new Regex(@"^(?<base>[a-z]+)_?(?<idx>\d+)?$");
          var hits = new List<(int col, string b, int? idx)>();
 
          for (int i = 0; i < header.Length; i++) {

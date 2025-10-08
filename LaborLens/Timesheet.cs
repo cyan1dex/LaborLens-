@@ -372,14 +372,14 @@ namespace LaborLens {
          }
          #endregion
 
-         //var overtime = CalculateOvertime(timeCards);
-         //actualOT = TimeSpan.FromHours(overtime.OvertimeHours);
-         //actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
+         var overtime = CalculateOvertime(timeCards);
+         actualOT = TimeSpan.FromHours(overtime.OvertimeHours);
+         actualDblOT = TimeSpan.FromHours(overtime.DoubletimeHours);
 
          #region BI-Monthly
-         var vals = CalculateOTHoursBiMonthly(this);
-         actualOT = TimeSpan.FromHours(vals.overtimeHours);
-         actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
+         //var vals = CalculateOTHoursBiMonthly(this);
+         //actualOT = TimeSpan.FromHours(vals.overtimeHours);
+         //actualDblOT = TimeSpan.FromHours(vals.doubleTimeHours);
 
          #endregion
 

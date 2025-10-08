@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string project = "Keisha";
+      public static string project = "Zhou";
 
       static void Main(string[] args)
       {
@@ -24,19 +24,25 @@ namespace LaborLens {
          }
 
          #region timecard importer
-         //var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
-         //var importer = new TimecardImporter(connString);
+         var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
+         var importer = new TimecardImporter(connString);
 
-         //string projectDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".."));
-         ////get all the paths of files with the name time in a directory
-         //var paths = Directory.EnumerateFiles(projectDir, "*", SearchOption.AllDirectories)
-         //                     .Where(p => Path.GetFileName(p)
-         //                         .IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0)
-         //                     .ToList();
+         string projectDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".."));
+         //get all the paths of files with the name time in a directory
+         var paths = Directory.EnumerateFiles(projectDir, "*.*", SearchOption.TopDirectoryOnly)
+         .Where(p =>
+         {
+            var name = Path.GetFileName(p);
+            if (name.StartsWith("~$", StringComparison.OrdinalIgnoreCase)) return false; // temp
+            var ext = Path.GetExtension(name).ToLowerInvariant();
+            if (ext != ".xlsx" && ext != ".xls") return false;                           // no CSV, no code files
+            return name.IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0;        // must contain "time"
+         })
+         .ToList();
 
-         //foreach (var path in paths) {
-         //   importer.ImportExcel(path, project);
-         //}
+         foreach (var path in paths) {
+            importer.ImportExcel(path, project);
+         }
          #endregion
 
          #region one time ingestion of Timedata from PDFs if needed
@@ -72,7 +78,7 @@ namespace LaborLens {
          #endregion
          #region SQL Pay Parser
          //var stubdata = new SQL.SQLRepository().GetPaydata(project);
-        // var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
+         // var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
           Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          // var stubdata2 = new SQL.SQLRepository().GetPaydata2(dbName);
