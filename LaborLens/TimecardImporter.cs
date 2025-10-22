@@ -257,50 +257,29 @@ namespace LaborLens {
          hours = 0m;
          if (v == null) return false;
 
-         // If Excel gave you a DateTime or TimeSpan (common for time cells)
-         if (v is DateTime dt) {
-            hours = (decimal)dt.TimeOfDay.TotalHours;
-            return true;
-         }
-         if (v is TimeSpan ts) {
-            hours = (decimal)ts.TotalHours;
-            return true;
-         }
+         // If the cell is a DateTime or TimeSpan, convert to hours (this is NOT "rewriting",
+         // it's just interpreting a duration like 01:15:00 as 1.25 hours).
+         if (v is DateTime dt) { hours = (decimal)dt.TimeOfDay.TotalHours; return true; }
+         if (v is TimeSpan ts) { hours = (decimal)ts.TotalHours; return true; }
 
-         // If Excel gave you a number (double/decimal)
-         // - For true decimal hours (e.g., 9.25) value > 1
-         // - For time-of-day/duration cells formatted as time, Excel stores fraction of day (<= 1)
-         double d;
-         if (v is double && (d = (double)v) >= 0) {
-            hours = (decimal)(d <= 1.5 ? d * 24.0 : d); // <=1.5 => treat as fraction-of-day
-            return true;
-         }
-         decimal dec;
-         if (v is decimal && (dec = (decimal)v) >= 0) {
-            hours = dec; // assume decimal hours
-            return true;
-         }
+         // If numeric, treat it as hours as-is. NO multiplying by 24. Ever.
+         if (v is double d && d >= 0) { hours = (decimal)d; return true; }
+         if (v is float f && f >= 0) { hours = (decimal)f; return true; }
+         if (v is decimal dec && dec >= 0) { hours = dec; return true; }
+         if (v is int i && i >= 0) { hours = i; return true; }
+         if (v is long l && l >= 0) { hours = l; return true; }
 
-         // String cases: "9:12", "09:12:30", "9.2"
+         // Strings: interpret "hh:mm[:ss]" as a duration; otherwise parse decimal hours.
          var s = v.ToString().Trim();
          if (string.IsNullOrEmpty(s)) return false;
 
-         // colon => parse as TimeSpan
-         TimeSpan ts2;
-         if (s.IndexOf(':') >= 0 && TimeSpan.TryParse(s, out ts2)) {
-            hours = (decimal)ts2.TotalHours;
-            return true;
-         }
+         if (TimeSpan.TryParse(s, out var ts2)) { hours = (decimal)ts2.TotalHours; return true; }
 
-         // plain number string (decimal hours)
-         decimal dh;
-         if (decimal.TryParse(s, out dh)) {
-            hours = dh;
-            return true;
-         }
+         if (decimal.TryParse(s, out var dh) && dh >= 0) { hours = dh; return true; }
 
          return false;
       }
+
 
 
       private static decimal? TryDecimal(object v)
