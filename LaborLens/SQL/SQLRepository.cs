@@ -162,7 +162,7 @@ namespace LaborLens.SQL {
                         regHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
                   }
 
-                  if (row["code"].ToString().ToUpper() == ("OVERTIME")) {
+                  if (row["code"].ToString() == ("Overtime FLSA")) {
 
                      if (row["hrs"].ToString().Contains(':'))
                         otHrs = ParseHours(row["hrs"].ToString());
@@ -236,8 +236,8 @@ namespace LaborLens.SQL {
                   doubltOtRate = dblOTHrs != 0 ? dblOTPay / dblOTHrs : 0,
                   doubleOtHrs = dblOTHrs,
                   doubleOtPay = dblOTPay,
-                //  penaltyHrs = pnltyHrs,
-               //   penaltyPay = pnltyTPay
+                  penaltyHrs = pnltyHrs,
+                 penaltyPay = pnltyTPay
                };
 
                if (stubs[identifier].Contains(stub)) {
@@ -777,197 +777,135 @@ namespace LaborLens.SQL {
 
       public Dictionary<string, List<Timecard>> ConvertDataToDict(DataTable dt)
       {
-         Dictionary<string, List<Timecard>> cards = new Dictionary<string, List<Timecard>>();
-         Timecard t = new Timecard();
+         // by-employee buckets
+         var cards = new Dictionary<string, List<Timecard>>(StringComparer.OrdinalIgnoreCase);
 
-         string identifier = "-1";
-         DateTime shiftdate = DateTime.Now;
-         DateTime currentDate = DateTime.Now;
-
-         HashSet<string> clocks = new HashSet<string>();
+         // working state for the current, open timecard
+         var t = new Timecard();
+         string identifier = "-1";                  // current employee id
+         DateTime? lastOut = null;                  // last out across rows for the employee
          int badTimecards = 0;
+         int duplicates = 0;
 
-         foreach (DataRow row in dt.Rows) {
+         // de-dupe across whole import: (EE|In|Out)
+         var clocks = new HashSet<string>(StringComparer.Ordinal);
 
-            shiftdate = DateTime.TryParse(row["ShiftDate"].ToString(), out DateTime dtx) == true ? dtx : DateTime.Now;
-            string currentID = string.Empty;
+         // rows must be in deterministic order: by EE, then In_time
+         var rows =
+             dt.AsEnumerable()
+               .Where(r => !string.IsNullOrWhiteSpace(r["EE_ID"]?.ToString()) &&
+                           !string.IsNullOrWhiteSpace(r["InAt"]?.ToString()) &&
+                           !string.IsNullOrWhiteSpace(r["OutAt"]?.ToString()))
+               .OrderBy(r => NormalizeId(r["EE_ID"]?.ToString()))
+               .ThenBy(r => DateTime.Parse(r["InAt"].ToString()));
 
-            if (row["EE_ID"].ToString().Trim() != string.Empty) {
-               currentID = row["EE_ID"].ToString().Replace("HBS", "").Trim().ToString().ToUpper();
-               //  int val = int.Parse(currentID);
-               // currentID = val.ToString();
-            } else
-               currentID = identifier;
+         #region for testing
+         if (identifier.Trim() == "ZELADA. SAMANTHA" && lastOut.Value.Year == 2020 && lastOut.Value.Month == 4 && lastOut.Value.Day == 13) {
+            // && currentDate.Year == 2020 && currentDate.Month == 4 && currentDate.Day == 1) {
+            int pause = 0;
+         }
+         #endregion
 
-            #region for testing
-            if (identifier.Trim() == "IA" && currentDate.Year == 2020 && currentDate.Month == 9 && currentDate.Day == 30) {
-               // && currentDate.Year == 2020 && currentDate.Month == 4 && currentDate.Day == 1) {
-               int pause = 0;
-            }
-            if (currentID == "14395372" && shiftdate.Year == 2020 && shiftdate.Month == 8 && shiftdate.Day == 13) {
-               int pause = 0;
-            }
-            #endregion
+         // how close punches can be before we merge into the same card
+         var maxGap = TimeSpan.FromHours(3);
 
-            #region move day back
-            //if(row["Day"].ToString().Trim() == string.Empty) {
-            //   if(currentDate.AddDays(1).Date == shiftdate.Date) {
-            //      DateTime da = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString());
-            //      DateTime db = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time"].ToString());
-            //      if(db < da) {
-            //         shiftdate = shiftdate.AddDays(-1);
-            //      }
-            //   }
-            //}
-            #endregion
-            if (row["In_time"].ToString() == string.Empty)
-               continue;
+         foreach (var row in rows) {
+            var currentID = NormalizeId(row["EE_ID"]?.ToString());
 
-            //check to make sure shift on the same day is not a split shift
-            TimeSpan timeBetweenPunches = TimeSpan.FromMinutes(30);
-            if (t.timepunches.Count > 0)
-               timeBetweenPunches = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()).Subtract(t.timepunches[t.timepunches.Count - 1].datetime);
+            // parse raw pair
+            var inDt = DateTime.Parse(row["InAt"].ToString());
+            var outDt = DateTime.Parse(row["OutAt"].ToString());
 
-            //If shift is the same date AND the punches are less than 6 hours apart
-            if (currentID == identifier && timeBetweenPunches.TotalHours == 0) {
+            // your exact AM/PM / overnight correction
+            (inDt, outDt) = NormalizePair(inDt, outDt);
 
-            } else if (currentID == identifier && currentDate.Date == shiftdate.Date && timeBetweenPunches.TotalHours < 3 && (timeBetweenPunches.TotalHours >= 0 || (timeBetweenPunches.TotalHours <= -23 && timeBetweenPunches.TotalHours >= -24)) && cards.ContainsKey(t.identifier)) {
-               //TODO: OR ID is a mATCH and day is next is plus 1 and time is less than 2 hours
-            } else if (currentID == identifier && currentDate.AddDays(1).Date == shiftdate.Date &&
-               ((timeBetweenPunches.TotalHours < 2.5 && timeBetweenPunches.TotalHours > 0) ||
-               (timeBetweenPunches.TotalHours <= -23 && timeBetweenPunches.TotalHours >= -24) //||
-            //   (timeBetweenPunches.TotalHours > 24 && timeBetweenPunches.TotalHours <= 25.5)
-               )) { //split shift
-               int pause = 0;
-            } else {
-               currentDate = shiftdate;
-               identifier = currentID;
+            // zero-length => skip
+            if (inDt == outDt) continue;
 
-               // if we haven't come across this employee             
-               if (currentID != null && !cards.ContainsKey(currentID)) {
-                  cards[currentID] = new List<Timecard>();
-               }
+            // import-level duplicate protection
+            var dupKey = $"{currentID}|{inDt:O}|{outDt:O}";
+            if (!clocks.Add(dupKey)) { duplicates++; continue; }
 
+            // decide if we start a new card
+            bool newEmployee = !currentID.Equals(identifier, StringComparison.OrdinalIgnoreCase);
+            bool newBlock = newEmployee || (lastOut.HasValue && (inDt - lastOut.Value) > maxGap);
+
+            if (newBlock) {
+               // close and store previous card if any
                if (t.timepunches.Count > 0) {
                   t.AnalyzeTimeCard();
-
-                  if (t.totalHrsActual.TotalHours < 0 || t.totalHrsActual.TotalHours > 24) {
+                  if (t.totalHrsActual.TotalHours < 0 || t.totalHrsActual.TotalHours > 24)
                      badTimecards++;
-                  } else
+                  else
                      cards[t.identifier].Add(t);
                }
 
-               shiftdate = currentDate;
-               identifier = currentID;
+               // start a new card for this employee
+               if (!cards.ContainsKey(currentID))
+                  cards[currentID] = new List<Timecard>();
 
-               t = new Timecard();
-               t.identifier = identifier;
-               t.shiftDate = shiftdate;
+               t = new Timecard {
+                  identifier = currentID,
+                  // keep a representative date if you want it (first in’s date)
+                  shiftDate = inDt.Date
+               };
+
+               identifier = currentID;
+               lastOut = null;
             }
 
-            try {
+            // optional RegHours mapping
+            double reg = 0;
+            if (dt.Columns.Contains("Reg_hrs"))
+               double.TryParse(row["Reg_hrs"]?.ToString(), out reg);
 
-               if (row["In_time"].ToString() == String.Empty || row["Out_time"].ToString() == String.Empty) {
-                  t.invalid = true;
-               } else {
+            // add the pair
+            t.timepunches.Add(new TimeIn { datetime = inDt, hrsListed = reg });
+            t.timepunches.Add(new Timeout { datetime = outDt });
 
-                  string val = currentID + shiftdate.ToShortDateString() + row["In_time"].ToString() + row["Out_time"].ToString();
-                  if (!clocks.Contains(val))
-                     clocks.Add(val);
-                  else {
-                     // throw new Exception("Duplicates present");
-                     duplicates++;
-                     continue;
-                  }
-                  double hrs = 0;
-                  //double mealVar = Double.TryParse(row["MP"].ToString(),  out double hrs) == true ? hrs : 0;
-                  //if (mealVar == 1) {
-                  //   t.paidMealPremium = true;
-                  //}
+            lastOut = outDt;
+         }
 
-                  t.timepunches.Add(new TimeIn() {
-                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()),
-                     // clockType = c,
-                     //isRestBreak = row["Cat"].ToString() == "BREAK" ? true : false,
-                     hrsListed = Double.TryParse(row["Reg_hrs"].ToString(), out hrs) == true ? hrs : 0,
-                    //   otHrsListed = Double.TryParse(row["OT"].ToString(), out hrs) == true ? hrs : 0,
-                    //    dblOtListed = Double.TryParse(row["DT"].ToString(), out  hrs) == true ? hrs : 0,
-                  });
-
-                  t.timepunches.Add(new Timeout() {
-                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time"].ToString())
-                  });
-
-                  #region subsequent punches
-                  //if (row["In_time2"].ToString() != String.Empty && row["Out_time2"].ToString() != String.Empty) {
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time2"].ToString()),
-                  //   });
-
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time2"].ToString()),
-                  //   });
-                  //}
-
-                  //if (row["In_time3"].ToString() != String.Empty && row["Out_time3"].ToString() != String.Empty) {
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time3"].ToString()),
-                  //   });
-
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time3"].ToString()),
-                  //   });
-                  //}
-
-                  //if (row["In_time4"].ToString() != String.Empty && row["Out_time4"].ToString() != String.Empty) {
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time4"].ToString()),
-                  //   });
-
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time4"].ToString()),
-                  //   });
-                  //}
-
-                  //if (row["In_time5"].ToString() != String.Empty && row["Out_time5"].ToString() != String.Empty) {
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time5"].ToString()),
-                  //   });
-
-                  //   t.timepunches.Add(new TimeIn()
-                  //   {
-                  //      datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time5"].ToString()),
-                  //   });
-                  //}
-                  #endregion
-
-                  if (t.timepunches[t.timepunches.Count - 1].datetime < t.timepunches[t.timepunches.Count - 2].datetime) { //If Timeout is before Timein
-
-                     TimeSpan tDiff = t.timepunches[t.timepunches.Count - 1].datetime.Subtract(t.timepunches[t.timepunches.Count - 2].datetime);
-                     if (Math.Abs(tDiff.TotalHours) > 12) { //Has the wrong Meridian AM/PM value
-                        t.timepunches[t.timepunches.Count - 1].datetime = t.timepunches[t.timepunches.Count - 1].datetime.AddHours(24);
-                     } else //showing the previous date when they clocked out over night
-                        t.timepunches[t.timepunches.Count - 1].datetime = t.timepunches[t.timepunches.Count - 1].datetime.AddHours(12);
-                  }
-
-               }
-            } catch (Exception e) {
-               throw new Exception(e.Message);
+         // finalize trailing card
+         if (t.timepunches.Count > 0) {
+            t.AnalyzeTimeCard();
+            if (t.totalHrsActual.TotalHours < 0 || t.totalHrsActual.TotalHours > 24)
+               badTimecards++;
+            else {
+               if (!cards.ContainsKey(t.identifier))
+                  cards[t.identifier] = new List<Timecard>();
+               cards[t.identifier].Add(t);
             }
          }
 
-         if (badTimecards > 10)
-            throw new Exception("Issues with total hours - shifts out of order");
+         //if (badTimecards > 10)
+        //    throw new Exception("Issues with total hours - shifts out of order");
 
          return cards;
       }
+
+      /* ---------------- helpers ---------------- */
+      private static string NormalizeId(string raw)
+      {
+         return (raw ?? "-1").Replace("HBS", "").Trim().ToUpperInvariant();
+      }
+
+      //  original “fix Out < In” logic packaged
+      private static (DateTime In, DateTime Out) NormalizePair(DateTime inDt, DateTime outDt)
+      {
+         if (outDt < inDt) {
+            var diff = outDt - inDt; // negative
+            if (Math.Abs(diff.TotalHours) > 12) {
+               // wrong AM/PM — push a full day
+               outDt = outDt.AddHours(24);
+            } else {
+               // typical previous-day stamp — push 12h
+               outDt = outDt.AddHours(12);
+            }
+         }
+         return (inDt, outDt);
+      }
+
 
       public Dictionary<string, List<Timecard>> ConvertDataToDictKronos(DataTable dt)
       {

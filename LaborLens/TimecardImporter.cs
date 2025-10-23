@@ -61,12 +61,19 @@ namespace LaborLens {
                      int outColIndex;
                      if (!outCols.TryGetValue(k, out outColIndex)) continue;
 
+                     var inObj = GetObj(reader, inCols[k]);
+                     var outObj = GetObj(reader, outColIndex);
+
+
                      DateTime tin, tout;
                      if (!TryTime(GetObj(reader, inCols[k]), out tin)) continue;
                      if (!TryTime(GetObj(reader, outColIndex), out tout)) continue;
 
+                     if (tin.TimeOfDay == tout.TimeOfDay) continue; // skip zero-length pair
+
                      var shiftDate = shiftDateFromSheet.HasValue ? shiftDateFromSheet.Value : tin.Date;
-                     var notes = (tout < tin) ? "Cross-midnight adjusted" : null;
+                     //var notes = (tout < tin) ? "Cross-midnight adjusted" : null;
+                     var notes = (string)null;
 
                      decimal parsedHours;
                      decimal? reg = null;
@@ -74,6 +81,9 @@ namespace LaborLens {
                         reg = parsedHours; // keep the source’s rounding/precision
                      }
 
+                     // NEW: decide whether to populate InAt/OutAt
+                     DateTime? inAt = IsTrueDateTime(inObj, tin) ? tin : (DateTime?)null;
+                     DateTime? outAt = IsTrueDateTime(outObj, tout) ? tout : (DateTime?)null;
 
                      var r = tvp.NewRow();
                      r["ProjectKey"] = projectKey;
@@ -87,6 +97,11 @@ namespace LaborLens {
                      r["OutTime"] = tout.TimeOfDay;
                      r["RegHours"] = (object)(reg.HasValue ? reg.Value : (object)DBNull.Value);
                      r["Notes"] = (object)(notes ?? (object)DBNull.Value);
+
+                     // NEW: pass NULLs when times were time-only
+                     r["InAt"] = inAt.HasValue ? (object)inAt.Value : DBNull.Value;
+                     r["OutAt"] = outAt.HasValue ? (object)outAt.Value : DBNull.Value;
+
                      tvp.Rows.Add(r);
                   }
                }
@@ -113,6 +128,33 @@ namespace LaborLens {
          }
       }
 
+      private static bool HasTrueDate(object v)
+      {
+         if (v is DateTime d) {
+            // Excel time-only cells are typically 1899-12-30; also guard MinValue
+            if (d.Date != new DateTime(1899, 12, 30) && d.Date != DateTime.MinValue.Date)
+               return true;
+         }
+         return false;
+      }
+
+      private static bool IsTrueDateTime(object cell, DateTime parsed)
+      {
+         // Excel time-only cells come as DateTime with date 1899-12-30
+         if (cell is DateTime d)
+            return d.Date != new DateTime(1899, 12, 30) && d.Date != DateTime.MinValue.Date;
+
+         // If the cell was a string that includes a date, accept it
+         var s = cell as string;
+         if (!string.IsNullOrWhiteSpace(s)) {
+            DateTime dt;
+            if (DateTime.TryParse(s, out dt) && dt.Date != DateTime.MinValue.Date)
+               return true;
+         }
+         return false;
+      }
+
+
       // ---------- Helpers ----------
       private static DataTable MakeTvpTable()
       {
@@ -123,13 +165,19 @@ namespace LaborLens {
          dt.Columns.Add("RowNum", typeof(int));
          dt.Columns.Add("PairIndex", typeof(int));
          dt.Columns.Add("EmployeeId", typeof(string));
-         dt.Columns.Add("ShiftDate", typeof(DateTime));
+         dt.Columns.Add("ShiftDate", typeof(DateTime));   // date in SQL, ok to use DateTime here
          dt.Columns.Add("InTime", typeof(TimeSpan));
          dt.Columns.Add("OutTime", typeof(TimeSpan));
          dt.Columns.Add("RegHours", typeof(decimal));
          dt.Columns.Add("Notes", typeof(string));
+
+         // NEW — must be in the TVP order
+         dt.Columns.Add("InAt", typeof(DateTime));    // nullable in SQL: pass DBNull.Value when missing
+         dt.Columns.Add("OutAt", typeof(DateTime));
+
          return dt;
       }
+
 
       private static string[] ReadHeaders(IExcelDataReader reader)
       {
