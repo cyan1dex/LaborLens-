@@ -97,7 +97,7 @@ namespace LaborLens.SQL {
             try {
 
                identifier = row["EE_ID"].ToString().ToUpper();
-             //  DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
+               //  DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
                DateTime end = DateTime.Parse(row["Period_End"].ToString());  ////
                DateTime start = DateTime.Parse(row["Period_Begin"].ToString());  ////
 
@@ -125,24 +125,24 @@ namespace LaborLens.SQL {
 
                #region pay data on a single line
                if (singleLine) {
-                   regRate = 0;// !String.IsNullOrEmpty(row["Rate"].ToString().Replace("$","")) ? Double.Parse(row["Rate"].ToString().Replace("$", "")) : 0;
+                  regRate = 0;// !String.IsNullOrEmpty(row["Rate"].ToString().Replace("$","")) ? Double.Parse(row["Rate"].ToString().Replace("$", "")) : 0;
 
-                   regPay = row["Regular_Wages"].ToString() != string.Empty ? Double.Parse(row["Regular_Wages"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "").Replace("$", "")) : 0;
-                   regHrs = row["Reg_hrs"].ToString() != string.Empty ? Double.Parse(row["Reg_hrs"].ToString()) : 0;
+                  regPay = row["Regular_Wages"].ToString() != string.Empty ? Double.Parse(row["Regular_Wages"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "").Replace("$", "")) : 0;
+                  regHrs = row["Reg_hrs"].ToString() != string.Empty ? Double.Parse(row["Reg_hrs"].ToString()) : 0;
 
-                   otHrs = !String.IsNullOrEmpty(row["Overtime_Hours_Total"].ToString()) ? Double.Parse(row["Overtime_Hours_Total"].ToString()) : 0;
-                   otPay = !String.IsNullOrEmpty(row["OT_Wages"].ToString().Replace("$", "")) ? Double.Parse(row["OT_Wages"].ToString().Replace("$", "")) : 0;
+                  otHrs = !String.IsNullOrEmpty(row["Overtime_Hours_Total"].ToString()) ? Double.Parse(row["Overtime_Hours_Total"].ToString()) : 0;
+                  otPay = !String.IsNullOrEmpty(row["OT_Wages"].ToString().Replace("$", "")) ? Double.Parse(row["OT_Wages"].ToString().Replace("$", "")) : 0;
 
-                   dblOTHrs = !String.IsNullOrEmpty(row["DoubleTime_Hours"].ToString()) ? Double.Parse(row["DoubleTime_Hours"].ToString()) : 0;
-                   dblOTPay = !String.IsNullOrEmpty(row["DoubleTime_Earnings"].ToString().Replace("$", "")) ? Double.Parse(row["DoubleTime_Earnings"].ToString().Replace("$", "")) : 0;
+                  dblOTHrs = !String.IsNullOrEmpty(row["DoubleTime_Hours"].ToString()) ? Double.Parse(row["DoubleTime_Hours"].ToString()) : 0;
+                  dblOTPay = !String.IsNullOrEmpty(row["DoubleTime_Earnings"].ToString().Replace("$", "")) ? Double.Parse(row["DoubleTime_Earnings"].ToString().Replace("$", "")) : 0;
 
                   //   pnltyHrs = !String.IsNullOrEmpty(row["Premium_Hours"].ToString()) ? Double.Parse(row["Premium_Hours"].ToString()) : 0;
                   //   pnltyTPay = !String.IsNullOrEmpty(row["Premium_Earnings"].ToString()) ? Double.Parse(row["Premium_Earnings"].ToString()) : 0;
 
-                   bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings"].ToString()) ? Double.Parse(row["B_Bonus_earnings"].ToString()) : 0;
+                  bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings"].ToString()) ? Double.Parse(row["B_Bonus_earnings"].ToString()) : 0;
                   if (bonus == 0)
                      bonus = !String.IsNullOrEmpty(row["B_Bonus_earnings2"].ToString()) ? Double.Parse(row["B_Bonus_earnings2"].ToString()) : 0;
-                   commissions = !String.IsNullOrEmpty(row["Commission_Total_Amount"].ToString()) ? Double.Parse(row["Commission_Total_Amount"].ToString()) : 0;
+                  commissions = !String.IsNullOrEmpty(row["Commission_Total_Amount"].ToString()) ? Double.Parse(row["Commission_Total_Amount"].ToString()) : 0;
                }
                #endregion
 
@@ -228,8 +228,8 @@ namespace LaborLens.SQL {
                   regHrs = regHrs,
                   regPay = regPay,
                   regRate = regRate, //regHrs > 0 ? regPay / regHrs : 0,//regRate,//
-                //  bonus = bonus,
-                  //commissions = commissions,
+                                     //  bonus = bonus,
+                                     //commissions = commissions,
                   otRate = otHrs != 0 ? otPay / otHrs : 0,
                   otHrs = otHrs,
                   otPay = otPay,
@@ -237,7 +237,7 @@ namespace LaborLens.SQL {
                   doubleOtHrs = dblOTHrs,
                   doubleOtPay = dblOTPay,
                   penaltyHrs = pnltyHrs,
-                 penaltyPay = pnltyTPay
+                  penaltyPay = pnltyTPay
                };
 
                if (stubs[identifier].Contains(stub)) {
@@ -775,8 +775,70 @@ namespace LaborLens.SQL {
          return cards;
       }
 
+
+
+      DateTime FirstInDate(Timecard c)
+      {
+         var firstIn = c.timepunches.OfType<TimeIn>().FirstOrDefault();
+         return (firstIn != null ? firstIn.datetime.Date : c.shiftDate.Value.Date);
+      }
+
+      string CardSpan(Timecard c)
+      {
+         DateTime? fi = c.timepunches.OfType<TimeIn>().FirstOrDefault()?.datetime;
+         DateTime? lo = c.timepunches.OfType<Timeout>().LastOrDefault()?.datetime;
+
+         return $"{(fi.HasValue ? fi.Value.ToString("MM/dd HH:mm") : "??")}" +
+                $"-{(lo.HasValue ? lo.Value.ToString("MM/dd HH:mm") : "??")}";
+      }
+
+      bool IsStub(Timecard c, double threshold)
+      {
+         var h = c.totalHrsActual.TotalHours;
+         return h > 0 && h < threshold;
+      }
+
+      public bool RegisterCard(  Timecard c,Dictionary<string, Dictionary<DateTime, List<Timecard>>> byEmpDay,List<string> suspects,   double stubThresholdHrs)
+      {
+         var day = FirstInDate(c);
+
+         // ensure per-employee/day buckets exist
+         if (!byEmpDay.TryGetValue(c.identifier, out var dayMap)) {
+            dayMap = new Dictionary<DateTime, List<Timecard>>();
+            byEmpDay[c.identifier] = dayMap;
+         }
+         if (!dayMap.TryGetValue(day, out var listForDay)) {
+            listForDay = new List<Timecard>();
+            dayMap[day] = listForDay;
+         }
+
+         // suspicious: multiple cards same emp/day AND at least one is a “stub”
+         bool currentStub = IsStub(c, stubThresholdHrs);
+         bool anyStub = currentStub || listForDay.Any(x => IsStub(x, stubThresholdHrs));
+
+         if (listForDay.Count > 0 && anyStub) {
+            var details = string.Join(" | ",
+                listForDay.Select(x => $"{CardSpan(x)}={x.totalHrsActual.TotalHours:0.##}h")
+                          .Concat(new[] { $"{CardSpan(c)}={c.totalHrsActual.TotalHours:0.##}h" }));
+            suspects.Add($"EE {c.identifier} {day:yyyy-MM-dd}: {details}");
+            // still add so downstream logic sees full picture
+         }
+
+         listForDay.Add(c);
+         return anyStub;
+      }
+
+
       public Dictionary<string, List<Timecard>> ConvertDataToDict(DataTable dt)
       {
+
+         // Per-employee/day index (for O(n) checks)
+         var byEmpDay = new Dictionary<string, Dictionary<DateTime, List<Timecard>>>();
+
+         // Collected suspects; throw later if too many
+         var suspects = new List<string>();
+         const double StubThresholdHrs = 2.0;   // “stub” if 0 < hours < 2
+
          // by-employee buckets
          var cards = new Dictionary<string, List<Timecard>>(StringComparer.OrdinalIgnoreCase);
 
@@ -834,10 +896,21 @@ namespace LaborLens.SQL {
                // close and store previous card if any
                if (t.timepunches.Count > 0) {
                   t.AnalyzeTimeCard();
+
+
                   if (t.totalHrsActual.TotalHours < 0 || t.totalHrsActual.TotalHours > 24)
                      badTimecards++;
-                  else
+                  else {
+                     // Add to main collection
+                     if (!cards.ContainsKey(t.identifier))
+                        cards[t.identifier] = new List<Timecard>();
+
                      cards[t.identifier].Add(t);
+
+                     // Register for same-day/suspect tracking
+                     RegisterCard(t, byEmpDay, suspects, StubThresholdHrs);
+                  }
+
                }
 
                // start a new card for this employee
@@ -878,8 +951,17 @@ namespace LaborLens.SQL {
             }
          }
 
+         if (suspects.Count >= 20) {
+            // Show up to 10 examples to keep the message compact
+            var sample = string.Join(Environment.NewLine, suspects.Take(10));
+            throw new Exception(
+                $"Detected {suspects.Count} suspicious split-midnight same-day stubs " +
+                $"(threshold < {StubThresholdHrs}h). Examples:\n{sample}\n" +
+                $"(showing first 10)");
+         }
+
          //if (badTimecards > 10)
-        //    throw new Exception("Issues with total hours - shifts out of order");
+         //    throw new Exception("Issues with total hours - shifts out of order");
 
          return cards;
       }
