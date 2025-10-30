@@ -197,8 +197,8 @@ namespace LaborLens {
 
          #region Salary analysis
          // new ExcelWriter().PoulateRoster(rosterResults);
-        //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
-        //  new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
+         //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
+         //  new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
 
          //double totalHrs = 0;
          //double cnt = 0;
@@ -221,8 +221,79 @@ namespace LaborLens {
          //}
          #endregion
 
+         new ExcelWriter().ExportOvertimeAuditTsv(timeSheets, project);
 
          new ExcelWriter().WriteTimesheetViolations(timeSheets);
+         #region Debug overtime of employer vs actual
+
+         string targetEmp = "2074";
+         var suspectPeriods = new HashSet<DateTime>
+         {
+          new DateTime(2021, 12, 26),
+             new DateTime(2022, 02, 06),
+             new DateTime(2022, 07, 10)
+         };
+
+         List<Timesheet> empSheets = timeSheets.TryGetValue(targetEmp, out var listForEmp)
+             ? listForEmp
+             : new List<Timesheet>();
+
+         var debugSheets = empSheets
+             .Where(ts => ts?.stub != null && ts.stub.periodEnd.HasValue &&
+                          suspectPeriods.Contains(ts.stub.periodEnd.Value.Date))
+             .OrderBy(ts => ts.stub.periodEnd.Value)
+             .ToList();
+
+         foreach (var ts in debugSheets) {
+            Console.WriteLine($"\n=== DEBUG TRACE {ts.identifier}  PB={ts.periodBegin:MM/dd/yyyy}  PE={ts.periodEnd:MM/dd/yyyy} ===");
+
+            // Recalculate fully
+            ts.AnalyzeADPHours();
+
+            // group by week (same as CalculateOvertime does)
+            var groupedWeeks = ts.timeCards
+               .OrderBy(tc => tc.shiftDate!.Value.Date)
+               .GroupBy(tc =>
+               {
+                  var d = tc.shiftDate!.Value.Date;                 // strip time
+                  var sunday = d.AddDays(-(int)d.DayOfWeek).Date;   // anchor to Sunday
+                  return sunday;
+               });
+
+            foreach (var wk in groupedWeeks) {
+               Console.WriteLine($"  WEEK {wk.Key:MM/dd}–{wk.Key.AddDays(6):MM/dd}");
+
+               double weekTotal = 0, weekOT = 0, weekDT = 0, weekReg = 0;
+               foreach (var card in wk) {
+                  double hrs = card.totalHrsActual.TotalHours;
+                  double reg = Math.Min(8, hrs);
+                  double ot = 0;
+                  double dt = 0;
+
+                  if (hrs > 8 && hrs <= 12)
+                     ot = hrs - 8;
+                  else if (hrs > 12) {
+                     ot = 4;
+                     dt = hrs - 12;
+                  }
+
+                  weekTotal += hrs;
+                  weekOT += ot;
+                  weekDT += dt;
+                  weekReg += reg;
+
+                  Console.WriteLine($"    {card.shiftDate:MM/dd}  Hrs={hrs,5:F2}  Reg={reg,5:F2}  OT={ot,5:F2}  DT={dt,5:F2}");
+               }
+
+               Console.WriteLine($"    --- WEEKLY TOTALS ---  REG={weekReg:F2}  OT={weekOT:F2}  DT={weekDT:F2}  SUM={weekTotal:F2}");
+               Console.WriteLine();
+            }
+
+            Console.WriteLine($"PAY PERIOD SUMMARY  Actual={ts.actualHours.TotalHours + ts.actualOT.TotalHours + ts.actualDblOT.TotalHours:F2}  " +
+                              $"REG={ts.actualHours.TotalHours:F2}  OT={ts.actualOT.TotalHours:F2}  DT={ts.actualDblOT.TotalHours:F2}");
+            Console.WriteLine($"CheckStub Summary   REG={ts.stub.regHrs:F2}  OT={ts.stub.otHrs:F2}  DT={ts.stub.doubleOtHrs:F2}  TOTAL={ts.stub.regHrs + ts.stub.otHrs + ts.stub.doubleOtHrs:F2}");
+         }
+         #endregion
       }
 
 

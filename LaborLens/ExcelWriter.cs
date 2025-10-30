@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlTypes;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using static LaborLens.DataProcessor;
@@ -218,6 +219,84 @@ namespace LaborLens {
          #endregion
       }
 
+      public void ExportOvertimeAuditTsv(Dictionary<string, List<Timesheet>> empSheets, string projectName)
+      {
+         // Base project directory (your pattern)
+         var probeRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\"));
+         var analysisPath = Directory.EnumerateFiles(
+                                 probeRoot,
+                                 "Weaver v. Henner Analysis.xlsx",
+                                 SearchOption.AllDirectories)
+                             .FirstOrDefault();
+
+         var targetDir = analysisPath != null
+             ? Path.GetDirectoryName(analysisPath)!
+             : probeRoot; // fallback to project root if not found
+
+         Directory.CreateDirectory(targetDir);
+
+         var outPath = Path.Combine(targetDir, "Unpaid_Overtime_Audit.csv");
+
+         // Write TSV
+         using (var sw = new StreamWriter(outPath, false, System.Text.Encoding.UTF8)) {
+            // Header (matches your screenshot)
+            sw.WriteLine("EmpID,Period End Date,Tot act hrs,Tot stub hrs,OT HRS (CHECK),OT HRS (ACT),DBL OT HRS (CHECK),DBL OT HRS (ACT),Underpaid OT,Underpaid DT,Overpaid OT,Overpaid DT");
+
+
+            foreach (var kvp in empSheets.OrderBy(k => k.Key)) {
+               string employeeId = kvp.Key;
+               var sheets = kvp.Value
+                               .OrderBy(s => s.periodEnd)   // stable ordering
+                               .ToList();
+
+               foreach (var sheet in sheets) {
+
+
+                  // Actuals (already computed on Timesheet)
+                  double actualTotalHours = sheet.actualTotalHours;
+                  double actualOT = Math.Round(sheet.actualOT.TotalHours, 2);
+                  double actualDT = Math.Round(sheet.actualDblOT.TotalHours, 2);
+
+                  // Paystub ("check") values
+                  var stub = sheet.stub ?? new PayStub();
+                  double checkOT = Math.Round(stub.otHrs, 2);
+                  double checkDT = Math.Round(stub.doubleOtHrs, 2);
+                  double checkTotal = Math.Round((stub.regHrs + stub.otHrs + stub.doubleOtHrs), 2);
+
+                  // Differences (positive in the direction named)
+                  double underOT = Math.Max(0, Math.Round(actualOT - checkOT, 2));
+                  double underDT = Math.Max(0, Math.Round(actualDT - checkDT, 2));
+                  double overOT = Math.Max(0, Math.Round(checkOT - actualOT, 2));
+                  double overDT = Math.Max(0, Math.Round(checkDT - actualDT, 2));
+
+                  // Optional: enforce your 1-hour tolerance on total hours
+                  // If you want every period regardless of mismatch, remove this 'if'
+                  if (Math.Abs(actualTotalHours - checkTotal) > 1.0)
+                     continue;
+
+                  // Write one row (tab-separated)
+                  sw.WriteLine(string.Join(",", new[]{
+                employeeId,
+                sheet.periodEnd.Value.ToString("M/d/yyyy", CultureInfo.InvariantCulture),
+                Math.Round(actualTotalHours, 2).ToString(CultureInfo.InvariantCulture),
+                checkTotal.ToString(CultureInfo.InvariantCulture),
+                checkOT.ToString(CultureInfo.InvariantCulture),
+                actualOT.ToString(CultureInfo.InvariantCulture),
+                checkDT.ToString(CultureInfo.InvariantCulture),
+                actualDT.ToString(CultureInfo.InvariantCulture),
+                underOT.ToString(CultureInfo.InvariantCulture),
+                underDT.ToString(CultureInfo.InvariantCulture),
+                overOT.ToString(CultureInfo.InvariantCulture),
+                overDT.ToString(CultureInfo.InvariantCulture)
+            }));
+               }
+            }
+         }
+
+
+
+         Console.WriteLine($"Wrote overtime audit: {outPath}");
+      }
 
       public void PoulateGraphData(List<Shift> shifts, int totEmps, PayPeriods pagaData, int over35, Analysis analysis)
       {
