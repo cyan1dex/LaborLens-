@@ -25,6 +25,101 @@ namespace LaborLens {
          }
       }
 
+
+
+
+      // ---------- tiny helpers ----------
+      static string Norm(string s) => (s ?? "").Replace(" ", "").Replace("_", "").ToLowerInvariant();
+
+      static (TimeSpan? tod, DateTime? full) ParseTimeCell(object cell)
+      {
+         if (cell == null || cell == DBNull.Value) return (null, null);
+
+         // Native types
+         if (cell is DateTime dt) return (dt.TimeOfDay, dt.Year >= 1901 ? dt : (DateTime?)null);
+         if (cell is TimeSpan ts) return (ts, null);
+         if (cell is double d && d >= 0 && d <= 1) return (TimeSpan.FromDays(d), null);
+
+         // Strings
+         var s = cell.ToString().Trim();
+         if (s.Length == 0) return (null, null);
+         if (DateTime.TryParse(s, out var dtx)) return (dtx.TimeOfDay, dtx.Year >= 1901 ? dtx : (DateTime?)null);
+         if (TimeSpan.TryParse(s, out var tsx)) return (tsx, null);
+         if (double.TryParse(s, out var dx) && dx >= 0 && dx <= 1) return (TimeSpan.FromDays(dx), null);
+
+         return (null, null);
+      }
+
+      static List<(int inCol, int outCol)> FindInOutPairs(string[] headers)
+      {
+         // match in, in2, in_3 ... to out, out2, out_3
+         var map = headers
+             .Select((h, i) => (norm: Norm(h), idx: i))
+             .ToDictionary(x => x.norm, x => x.idx);
+
+         var pairs = new List<(int, int)>();
+         for (int k = 1; k <= 8; k++) // support up to 8 pairs per row
+         {
+            string tag = k == 1 ? "" : k.ToString();
+            if (map.TryGetValue("in" + tag, out var ci) ||
+                map.TryGetValue("timein" + tag, out ci) ||
+                map.TryGetValue("clockin" + tag, out ci) ||
+                map.TryGetValue("start" + tag, out ci) ||
+                map.TryGetValue("timein" + ("_" + tag), out ci)) // permissive
+            {
+               if (map.TryGetValue("out" + tag, out var co) ||
+                   map.TryGetValue("timeout" + tag, out co) ||
+                   map.TryGetValue("clockout" + tag, out co) ||
+                   map.TryGetValue("end" + tag, out co)) {
+                  pairs.Add((ci, co));
+               }
+            }
+         }
+         return pairs;
+      }
+
+      // ---------- main importer ----------
+      // --- Robust time parser: never invents "today" ---
+      private static bool TryTimeEx(object v, out DateTime dt, out bool hasFullDate)
+      {
+         dt = default;
+         hasFullDate = false;
+
+         if (v == null || v == DBNull.Value) return false;
+
+         // Excel often gives DateTime even for time-only. Treat year < 1901 as time-only.
+         if (v is DateTime d) {
+            if (d.Year >= 1901) { dt = d; hasFullDate = true; return true; }
+            dt = new DateTime(1900, 1, 1).Date + d.TimeOfDay;  // epoch, no real date
+            return true;
+         }
+
+         // Excel numeric: <1 = fraction of a day (time); >=1 = full date
+         if (v is double num) {
+            if (num >= 1.0) { dt = DateTime.FromOADate(num); hasFullDate = true; return true; }
+            dt = new DateTime(1900, 1, 1).AddDays(num); // time-only → epoch + fraction
+            return true;
+         }
+
+         if (v is TimeSpan ts) { dt = new DateTime(1900, 1, 1) + ts; return true; }
+
+         var s = v.ToString().Trim();
+         if (s.Length == 0) return false;
+
+         // Try time-only first to avoid DateTime.Parse injecting today
+         if (TimeSpan.TryParse(s, out var tspan)) {
+            dt = new DateTime(1900, 1, 1) + tspan; // epoch + time
+            return true;
+         }
+
+         // Then try full datetime; accept only if the year is sane
+         if (DateTime.TryParse(s, out var parsed) && parsed.Year >= 1901) {
+            dt = parsed; hasFullDate = true; return true;
+         }
+
+         return false;
+      }
+
       public void ImportExcel(string filePath, string projectKey)
       {
          var tvp = MakeTvpTable();
@@ -37,13 +132,13 @@ namespace LaborLens {
                if (!reader.Read()) continue; // header row
                var headers = ReadHeaders(reader);
 
-               int colEmp = Find(headers, new[] { "id", "eid", "filenumber", "employeeid", "emp","name" ,"positionid"}, false);
+               // Broadened EID synonyms so your files resolve cleanly
+               int colEmp = Find(headers, new[] { "ee_id", "id", "eid", "filenumber", "employeeid", "emp", "name", "positionid", "number" }, true);
                int colDate = Find(headers, new[] { "shiftdate", "date", "workdate", "shift_date" }, false);
+               int colHours = Find(headers, new[] { "total", "reg_hrs", "regularhours", "hours", "listedhrs", "actualhours", "earnhours", "hrs" }, false);
 
-               int colHours = Find(headers, new[] { "total", "reg_hrs", "regularhours", "hours" ,"ListedHrs","actualhours", "EarnHours","hrs" }, false);
-
-               var inCols = FindIndexed(headers, new[] { "timein", "in", "clockin", "start" ,"time_in", "ActualPunchInTime", "InPunchTime" });
-               var outCols = FindIndexed(headers, new[] { "timeout", "out", "clockout", "end","time_out", "ActualPunchOutTime", "OutPunchTime" });
+               var inCols = FindIndexed(headers, new[] { "timein", "in", "clockin", "start", "time_in", "actualpunchintime", "inpunchtime" });
+               var outCols = FindIndexed(headers, new[] { "timeout", "out", "clockout", "end", "time_out", "actualpunchouttime", "outpunchtime" });
 
                int rowNum = 1; // after header
                while (reader.Read()) {
@@ -54,36 +149,28 @@ namespace LaborLens {
                   if (string.IsNullOrWhiteSpace(rawEmp)) continue;
                   var eid = rawEmp.Trim();
 
+                  // Only the sheet’s date; NEVER synthesize with today
                   DateTime? shiftDateFromSheet = TryDate(GetObj(reader, colDate));
 
-                  // ensure stable ordering of pairs
                   foreach (var k in inCols.Keys.OrderBy(i => i)) {
-                     int outColIndex;
-                     if (!outCols.TryGetValue(k, out outColIndex)) continue;
+                     if (!outCols.TryGetValue(k, out var outColIndex)) continue;
 
                      var inObj = GetObj(reader, inCols[k]);
                      var outObj = GetObj(reader, outColIndex);
 
+                     // Always parse time-of-day as TimeSpan (no dates fabricated)
+                     if (!TryTimeOfDay(inObj, out var inTod)) continue;
+                     if (!TryTimeOfDay(outObj, out var outTod)) continue;
 
-                     DateTime tin, tout;
-                     if (!TryTime(GetObj(reader, inCols[k]), out tin)) continue;
-                     if (!TryTime(GetObj(reader, outColIndex), out tout)) continue;
+                     // If the cell truly had a real calendar date (>= 1901), capture it in InAt/OutAt
+                     DateTime? inAt = HasRealDate(inObj, out var inFull) ? inFull : (DateTime?)null;
+                     DateTime? outAt = HasRealDate(outObj, out var outFull) ? outFull : (DateTime?)null;
 
-                     if (tin.TimeOfDay == tout.TimeOfDay) continue; // skip zero-length pair
+                     // Skip zero-length
+                     if (inTod == outTod) continue;
 
-                     var shiftDate = shiftDateFromSheet.HasValue ? shiftDateFromSheet.Value : tin.Date;
-                     //var notes = (tout < tin) ? "Cross-midnight adjusted" : null;
-                     var notes = (string)null;
-
-                     decimal parsedHours;
-                     decimal? reg = null;
-                     if (colHours >= 0 && TryHours(reader.GetValue(colHours), out parsedHours)) {
-                        reg = parsedHours; // keep the source’s rounding/precision
-                     }
-
-                     // NEW: decide whether to populate InAt/OutAt
-                     DateTime? inAt = IsTrueDateTime(inObj, tin) ? tin : (DateTime?)null;
-                     DateTime? outAt = IsTrueDateTime(outObj, tout) ? tout : (DateTime?)null;
+                     // Listed hours (unchanged)
+                     decimal parsedHours; decimal? reg = (colHours >= 0 && TryHours(reader.GetValue(colHours), out parsedHours)) ? parsedHours : (decimal?)null;
 
                      var r = tvp.NewRow();
                      r["ProjectKey"] = projectKey;
@@ -92,26 +179,69 @@ namespace LaborLens {
                      r["RowNum"] = rowNum;
                      r["PairIndex"] = k;
                      r["EmployeeId"] = eid;
-                     r["ShiftDate"] = shiftDate.Date;
-                     r["InTime"] = tin.TimeOfDay;
-                     r["OutTime"] = tout.TimeOfDay;
-                     r["RegHours"] = (object)(reg.HasValue ? reg.Value : (object)DBNull.Value);
-                     r["Notes"] = (object)(notes ?? (object)DBNull.Value);
 
-                     // NEW: pass NULLs when times were time-only
+                     // Time-of-day always recorded
+                     r["InTime"] = inTod;
+                     r["OutTime"] = outTod;
+
+                     // Only what the sheet actually had:
+                     r["ShiftDate"] = shiftDateFromSheet.HasValue ? (object)shiftDateFromSheet.Value.Date : DBNull.Value;
                      r["InAt"] = inAt.HasValue ? (object)inAt.Value : DBNull.Value;
                      r["OutAt"] = outAt.HasValue ? (object)outAt.Value : DBNull.Value;
+
+                     r["RegHours"] = reg.HasValue ? (object)reg.Value : DBNull.Value;
+                     r["Notes"] = DBNull.Value;
 
                      tvp.Rows.Add(r);
                   }
                }
-
-            } while (reader.NextResult()); // next worksheet
+            }
+            while (reader.NextResult()); // next worksheet
          }
 
          // push to SQL
          BulkInsert(tvp);
       }
+
+      /* ================= helpers (drop-in) ================= */
+
+      // Recognize a *real* calendar DateTime in the cell (>= year 1901)
+      // Extract time-of-day WITHOUT inventing a date.
+      // Accepts: TimeSpan, DateTime, Excel numeric, or time strings incl. "7:30 PM".
+      private static bool TryTimeOfDay(object v, out TimeSpan t)
+      {
+         t = default;
+         if (v == null || v == DBNull.Value) return false;
+
+         if (v is TimeSpan ts) { t = ts; return true; }
+         if (v is DateTime d) { t = d.TimeOfDay; return true; }
+         if (v is double n) { t = TimeSpan.FromDays(n - Math.Floor(n)); return true; }
+
+         var s = v.ToString().Trim();
+         if (s.Length == 0) return false;
+
+         // Handle AM/PM or 24-hour strings by parsing as DateTime then taking TimeOfDay
+         if (DateTime.TryParse(s, out var dt)) { t = dt.TimeOfDay; return true; }
+
+         // Last chance: pure hh:mm[:ss]
+         return TimeSpan.TryParse(s, out t);
+      }
+
+      // A "real" date-time only if the CELL actually contains a date value.
+      // Accept ONLY native DateTime or OADate number. Never from a string.
+      private static bool HasRealDate(object v, out DateTime dt)
+      {
+         dt = default;
+         if (v == null || v == DBNull.Value) return false;
+
+         if (v is DateTime d) { if (d.Year >= 1901) { dt = d; return true; } return false; }
+         if (v is double n) { if (n >= 1.0) { dt = DateTime.FromOADate(n); return true; } return false; }
+
+         // Strings can carry today’s date implicitly -> treat as NOT a real date
+         return false;
+      }
+
+
 
       // ---------- SQL ----------
       private void BulkInsert(DataTable tvp)
@@ -189,12 +319,7 @@ namespace LaborLens {
          return headers.ToArray();
       }
 
-      private static string Norm(string s)
-      {
-         if (s == null) return "";
-         s = s.ToLowerInvariant().Trim();
-         return Regex.Replace(s, @"\s+|[^\w]", "");
-      }
+
 
       private static int Find(string[] header, IEnumerable<string> synonyms, bool required)
       {
