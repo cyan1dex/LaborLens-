@@ -119,8 +119,9 @@ namespace LaborLens {
          xlWorkSheet.Cells[14, 3] = salary.p2023.rate;
          xlWorkSheet.Cells[15, 3] = salary.p2024.rate;
          xlWorkSheet.Cells[16, 3] = salary.p2025.rate;
-         xlWorkSheet.Cells[17, 3] = salary.regRate;
-         xlWorkSheet.Cells[18, 3] = salary.otRate;
+         xlWorkSheet.Cells[17, 3] = salary.p2026.rate;
+         xlWorkSheet.Cells[18, 3] = salary.regRate;
+         xlWorkSheet.Cells[19, 3] = salary.otRate;
          #endregion
 
 

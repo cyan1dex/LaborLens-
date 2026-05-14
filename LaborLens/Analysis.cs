@@ -259,6 +259,7 @@ namespace LaborLens {
       public Payment p2023;
       public Payment p2024;
       public Payment p2025;
+      public Payment p2026;
       public double otRate;
       public decimal regRate;
 
@@ -278,6 +279,7 @@ namespace LaborLens {
          p2023 = new Payment();
          p2024 = new Payment();
          p2025 = new Payment();
+         p2026 = new Payment();
 
          payments.Add(p2013);
          payments.Add(p2014);
@@ -292,6 +294,7 @@ namespace LaborLens {
          payments.Add(p2023);
          payments.Add(p2024);
          payments.Add(p2025);
+         payments.Add(p2026);
 
          foreach (KeyValuePair<string, List<PayStub>> entry in empStubs) {
 
@@ -317,6 +320,7 @@ namespace LaborLens {
                   if (stub.periodEnd.Value.Year == 2023) { p2023.hrs += (Decimal)stub.regHrs; p2023.pay += (Decimal)stub.regPay; };
                   if (stub.periodEnd.Value.Year == 2024) { p2024.hrs += (Decimal)stub.regHrs; p2024.pay += (Decimal)stub.regPay; };
                   if (stub.periodEnd.Value.Year == 2025) { p2025.hrs += (Decimal)stub.regHrs; p2025.pay += (Decimal)stub.regPay; };
+                  if (stub.periodEnd.Value.Year == 2026) { p2026.hrs += (Decimal)stub.regHrs; p2026.pay += (Decimal)stub.regPay; };
                }
 
                //Ot with Dbl OT

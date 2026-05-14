@@ -13,7 +13,7 @@ namespace LaborLens {
 
       public static string payrollFilename = "paydata2.txt";
       public static string timecardFilename = "timedata.txt";
-      public static string project = "Zhou";
+      public static string project = "Air";
 
       static void Main(string[] args)
       {
@@ -24,25 +24,25 @@ namespace LaborLens {
          }
 
          #region timecard importer
-         var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
-         var importer = new TimecardImporter(connString);
+         //var connString = @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=staging;Encrypt=False";
+         //var importer = new TimecardImporter(connString);
 
-         string projectDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".."));
-         //get all the paths of files with the name time in a directory
-         var paths = Directory.EnumerateFiles(projectDir, "*.*", SearchOption.TopDirectoryOnly)
-         .Where(p =>
-         {
-            var name = Path.GetFileName(p);
-            if (name.StartsWith("~$", StringComparison.OrdinalIgnoreCase)) return false; // temp
-            var ext = Path.GetExtension(name).ToLowerInvariant();
-            if (ext != ".xlsx" && ext != ".xls") return false;                           // no CSV, no code files
-            return name.IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0;        // must contain "time"
-         })
-         .ToList();
+         //string projectDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", ".."));
+         ////get all the paths of files with the name time in a directory
+         //var paths = Directory.EnumerateFiles(projectDir, "*.*", SearchOption.TopDirectoryOnly)
+         //.Where(p =>
+         //{
+         //   var name = Path.GetFileName(p);
+         //   if (name.StartsWith("~$", StringComparison.OrdinalIgnoreCase)) return false; // temp
+         //   var ext = Path.GetExtension(name).ToLowerInvariant();
+         //   if (ext != ".xlsx" && ext != ".xls") return false;                           // no CSV, no code files
+         //   return name.IndexOf("time", StringComparison.OrdinalIgnoreCase) >= 0;        // must contain "time"
+         //})
+         //.ToList();
 
-         foreach (var path in paths) {
-            importer.ImportExcel(path, project);
-         }
+         //foreach (var path in paths) {
+         //   importer.ImportExcel(path, project);
+         //}
          #endregion
 
          #region one time ingestion of Timedata from PDFs if needed
@@ -55,14 +55,14 @@ namespace LaborLens {
          #endregion
 
          #region SQL Data Parser - Timecards
-         var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
-         var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
+        // var timecards = new SQL.SQLRepository().GetStagingTimecards(project);
+        // var empCards = new SQL.SQLRepository().ConvertDataToDict(timecards);
 
-         //  var empCards = new Dictionary<string, List<Timecard>>();
-         //  var timecards2 = new SQL.SQLRepository().GetTimecards2(dbName);
-         //   empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
+          var empCards = new Dictionary<string, List<Timecard>>();
+           var timecards2 = new SQL.SQLRepository().GetTimecards2(project);
+            empCards = new SQL.SQLRepository().ConvertDataToDict(empCards, timecards2);
 
-         //new ExcelWriter().WriteTimecardsFlat(empCards);
+        // new ExcelWriter().WriteTimecardsFlat(empCards);
          #endregion
          #region write Data
          //using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\CODICI\Desktop\output.txt", true)) {
@@ -77,10 +77,10 @@ namespace LaborLens {
          //}
          #endregion
          #region SQL Pay Parser
-         //var stubdata = new SQL.SQLRepository().GetPaydata(project);
-         // var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
+         var stubdata = new SQL.SQLRepository().GetPaydata(project);
+          var stubs = new SQL.SQLRepository().ConvertPayDataToDict(stubdata);
 
-          Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
+          //Dictionary<string, List<PayStub>> stubs = new Dictionary<string, List<PayStub>>();
          // var stubdata2 = new SQL.SQLRepository().GetPaydata2(dbName);
          // stubs = new SQL.SQLRepository().ConvertPayDataToDict2(stubs, stubdata2);
 
@@ -91,9 +91,9 @@ namespace LaborLens {
          #endregion
          #endregion
          #region Rest Breaks Analysis
-       //  var analyzer = new RestPeriodAnalyzer();
-       //  var results = analyzer.AnalyzeEmployeeRestPeriods(empCards);
-       //  var summary = analyzer.GenerateRestPeriodSummary(results);
+        var analyzer = new RestPeriodAnalyzer();
+         var results = analyzer.AnalyzeEmployeeRestPeriods(empCards);
+         var summary = analyzer.GenerateRestPeriodSummary(results);
          #endregion
          #region ADP PDF to CSV Parser
          //ADPParser adpParser = new ADPParser();
@@ -196,9 +196,9 @@ namespace LaborLens {
          #endregion
 
          #region Salary analysis
-         // new ExcelWriter().PoulateRoster(rosterResults);
-         //  new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
-         //  new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
+        //  new ExcelWriter().PoulateRoster(rosterResults);
+       //   new ExcelWriter().PoulateSummaryPayData(stubs, analysis); //Write pay data by year
+        //   new ExcelWriter().WritePayDetails(stubs); //Write pay data by employee
 
          //double totalHrs = 0;
          //double cnt = 0;
@@ -221,7 +221,7 @@ namespace LaborLens {
          //}
          #endregion
 
-         new ExcelWriter().ExportOvertimeAuditTsv(timeSheets, project);
+        // new ExcelWriter().ExportOvertimeAuditTsv(timeSheets, project);
 
          new ExcelWriter().WriteTimesheetViolations(timeSheets);
          #region Debug overtime of employer vs actual

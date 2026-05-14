@@ -435,7 +435,7 @@ namespace LaborLens.SQL {
 
          //TODO: update to use app.config
          // return @"Data Source=35.239.230.162;User ID=codici;Password=C0D1C1TODAY;Initial Catalog=master";
-         return @"Data Source=CODICI;User ID=codici;Password=agppci22;Initial Catalog=master;TrustServerCertificate=true;";
+         return @"Data Source=localhost;User ID=codici;Password=agppci22;Initial Catalog=master;TrustServerCertificate=true;";
       }
 
 
