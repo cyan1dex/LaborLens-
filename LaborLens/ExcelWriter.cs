@@ -973,9 +973,11 @@ namespace LaborLens {
       }
       public void WriteTimesheetViolations(Dictionary<string, List<Timesheet>> empTimesheets)
       {
+
+
          object misValue = System.Reflection.Missing.Value;
          //string newPath = @"C:\Users\CYAN1\Desktop\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
-         string newPath = @"C:\Users\CYAN1\OneDrive\Desktop\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
+         string newPath = Path.Combine(currentDir, "schedule.xlsx");
 
          Microsoft.Office.Interop.Excel.Application xlApp = new Microsoft.Office.Interop.Excel.Application();
          Microsoft.Office.Interop.Excel.Workbook xlWorkBook = xlApp.Workbooks.Open(newPath, 0, true, 5, "", "", true, Microsoft.Office.Interop.Excel.XlPlatform.xlWindows, "\t", false, false, 0, true, 1, 0);
@@ -1143,7 +1145,7 @@ namespace LaborLens {
             //}
          }
 
-         xlWorkBook.Close(true, misValue, misValue);
+         xlWorkBook.Close(true, Path.Combine(currentDir, "visual.xlsx"), misValue);
          xlApp.Quit();
 
          releaseObject(xlWorkSheet);
@@ -1396,7 +1398,7 @@ namespace LaborLens {
          }
 
          xlWorkBook.Close(true, misValue, misValue);
-         // xlWorkBook.SaveAs(newPath, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookDefault, Type.Missing, Type.Missing, true, false, XlSaveAsAccessMode.xlNoChange, XlSaveConflictResolution.xlLocalSessionChanges, Type.Missing, Type.Missing);
+          //xlWorkBook.SaveAs(newPath, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookDefault, Type.Missing, Type.Missing, true, false, XlSaveAsAccessMode.xlNoChange, XlSaveConflictResolution.xlLocalSessionChanges, Type.Missing, Type.Missing);
 
          xlApp.Quit();
 
