@@ -1697,7 +1697,7 @@ namespace LaborLens {
          columnRange.ColumnWidth = 18;
          #endregion
 
-         xlWorkBook.Close(true, misValue, misValue);
+         xlWorkBook.Close(true, Path.Combine(currentDir, Program.project + " paga"), misValue);
          xlApp.Quit();
 
          releaseObject(xlWorkSheet);
