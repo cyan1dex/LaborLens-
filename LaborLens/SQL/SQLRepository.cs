@@ -162,7 +162,7 @@ namespace LaborLens.SQL {
                         regHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
                   }
 
-                  if (row["code"].ToString() == ("Overtime FLSA")) {
+                  if (row["code"].ToString().ToUpper() == ("OVERTIME")) {
 
                      if (row["hrs"].ToString().Contains(':'))
                         otHrs = ParseHours(row["hrs"].ToString());
@@ -172,7 +172,7 @@ namespace LaborLens.SQL {
                      otPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                   }
 
-                  if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DOUBLE")) {
+                  if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DBL")) {
                      dblOTHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
                      dblOTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                   }
@@ -638,7 +638,7 @@ namespace LaborLens.SQL {
             //check to make sure shift on the same day is not a split shift
             TimeSpan timeBetweenPunches = TimeSpan.FromMinutes(30);
             if (t.timepunches.Count > 0)
-               timeBetweenPunches = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()).Subtract(t.timepunches[t.timepunches.Count - 1].datetime);
+               timeBetweenPunches = DateTime.Parse(row["In_time"].ToString()).Subtract(t.timepunches[t.timepunches.Count - 1].datetime);
 
             //If shift is the same date AND the punches are less than 6 hours apart
             if (currentID == identifier && timeBetweenPunches.TotalHours == 0) {
@@ -698,10 +698,10 @@ namespace LaborLens.SQL {
                   //}
 
                   t.timepunches.Add(new TimeIn() {
-                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()),
+                     datetime = DateTime.Parse( row["In_time"].ToString()),
                      // clockType = c,
                      //isRestBreak = row["Cat"].ToString() == "BREAK" ? true : false,
-                     hrsListed = Double.TryParse(row["Reg_hrs"].ToString(), out hrs) == true ? hrs : 0,
+                    // hrsListed = Double.TryParse(row["Reg_hrs"].ToString(), out hrs) == true ? hrs : 0,
                      //  otHrsListed = Double.TryParse(row["OT"].ToString(), out hrs) == true ? hrs : 0,
                      //   dblOtListed = Double.TryParse(row["DT"].ToString(), out  hrs) == true ? hrs : 0,
                   });
@@ -751,7 +751,7 @@ namespace LaborLens.SQL {
                   #endregion
 
                   t.timepunches.Add(new Timeout() {
-                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time"].ToString())
+                     datetime = DateTime.Parse( row["Out_time"].ToString())
                   });
 
                   if (t.timepunches[t.timepunches.Count - 1].datetime < t.timepunches[t.timepunches.Count - 2].datetime) { //If Timeout is before Timein
