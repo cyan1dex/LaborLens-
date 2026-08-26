@@ -1331,9 +1331,9 @@ namespace LaborLens {
       public void WriteTimecardsFlat(Dictionary<string, List<Timecard>> timeCards)
       {
          object misValue = System.Reflection.Missing.Value;
-         string newPath = @"C:\Users\CYAN1\OneDrive\Desktop\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
-                                                                            // string newPath = @"C:\Users\kebin\Documents\Timecards\Marin v Community Convalescent\Input\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
-                                                                            // string newPath = @"C:\Users\gcr1\Desktop\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
+         string newPath = Path.Combine(currentDir, "schedule.xlsx"); //System.IO.Path.Combine(activeDir, newFileName);
+                                                                     // string newPath = @"C:\Users\kebin\Documents\Timecards\Marin v Community Convalescent\Input\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
+                                                                     // string newPath = @"C:\Users\gcr1\Desktop\schedule.xlsx"; //System.IO.Path.Combine(activeDir, newFileName);
          Microsoft.Office.Interop.Excel.Application xlApp = new Microsoft.Office.Interop.Excel.Application();
          Microsoft.Office.Interop.Excel.Workbook xlWorkBook = xlApp.Workbooks.Open(newPath, 0, true, 5, "", "", true, Microsoft.Office.Interop.Excel.XlPlatform.xlWindows, "\t", false, false, 0, true, 1, 0);
          Microsoft.Office.Interop.Excel.Worksheet xlWorkSheet = (Microsoft.Office.Interop.Excel.Worksheet)xlWorkBook.Worksheets.get_Item(1);
@@ -1397,8 +1397,8 @@ namespace LaborLens {
 
          }
 
-         xlWorkBook.Close(true, misValue, misValue);
-          //xlWorkBook.SaveAs(newPath, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookDefault, Type.Missing, Type.Missing, true, false, XlSaveAsAccessMode.xlNoChange, XlSaveConflictResolution.xlLocalSessionChanges, Type.Missing, Type.Missing);
+         xlWorkBook.Close(true, Path.Combine(currentDir, "visuals.xlsx"), misValue);
+         //xlWorkBook.SaveAs(newPath, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookDefault, Type.Missing, Type.Missing, true, false, XlSaveAsAccessMode.xlNoChange, XlSaveConflictResolution.xlLocalSessionChanges, Type.Missing, Type.Missing);
 
          xlApp.Quit();
 
