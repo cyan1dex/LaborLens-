@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 
 
 namespace LaborLens.SQL {
@@ -98,8 +99,8 @@ namespace LaborLens.SQL {
 
                identifier = row["EE_ID"].ToString().ToUpper();
                //  DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
-               DateTime end = DateTime.Parse(row["Period_End"].ToString());  ////
-               DateTime start = DateTime.Parse(row["Period_Begin"].ToString());  ////
+               DateTime end = DateTime.Parse(row["Period_End"].ToString());  ////checkDate.AddDays(-5); //  ////
+               DateTime start = DateTime.Parse(row["Period_Begin"].ToString());  ////end.AddDays(-13); // // //
 
                /////////////setup bi-monthly times////////////////////
                //if (checkDate.Day <= 16) {
@@ -162,7 +163,7 @@ namespace LaborLens.SQL {
                         regHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
                   }
 
-                  if (row["code"].ToString().ToUpper() == ("OVERTIME")) {
+                  if (row["code"].ToString().ToUpper().Contains("Overtime 1.5") || row["code"].ToString() == ("Call Out 1.5") || row["code"].ToString() == ("On Call 1.5")) {
 
                      if (row["hrs"].ToString().Contains(':'))
                         otHrs = ParseHours(row["hrs"].ToString());
@@ -172,7 +173,7 @@ namespace LaborLens.SQL {
                      otPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                   }
 
-                  if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DBL")) {
+                  if (row["code"].ToString().ToUpper().Contains( "Call Out 2.0") || row["code"].ToString() == ("Overtime 2.0") || row["code"].ToString() == ("On Call 2.0")) {
                      dblOTHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
                      dblOTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                   }
@@ -280,9 +281,9 @@ namespace LaborLens.SQL {
             try {
 
                identifier = row["EE_ID"].ToString();
-               // DateTime checkDate = DateTime.Parse(row["Check_Date"].ToString());
-               DateTime end = DateTime.Parse(row["Period_End"].ToString());// checkDate.AddDays(-5); //  ////
-               DateTime start = DateTime.Parse(row["Period_Begin"].ToString());//end.AddDays(-13); // // //
+                DateTime checkDate = DateTime.Parse(row["Pay_Date"].ToString());
+               DateTime end = checkDate.AddDays(-5); //  ////
+               DateTime start = end.AddDays(-13); // // //
 
                /////////////setup bi-monthly times////////////////////
                //if (checkDate.Day <= 16) {
@@ -327,28 +328,28 @@ namespace LaborLens.SQL {
                double pnltyTPay = 0;
                double bonus = 0;
 
-               if (row["code"].ToString().ToUpper() == "HOURLY" || row["code"].ToString().ToUpper().Contains("REG")) {
+               if (row["code"].ToString().ToUpper() == "HOURLY" || row["code"].ToString().ToUpper().Contains("REGULAR")) {
                   regPay = Double.Parse(row["pay"].ToString().Trim(' ').Trim('$').Trim('(').Trim(')').Trim('$').Replace(",", ""));
                   if (regPay < 0)
                      continue;
                   if (row["hrs"].ToString() == String.Empty)
                      continue;
-                  regHrs = Double.Parse(row["hrs"].ToString());
+                  regHrs += Double.Parse(row["hrs"].ToString());
                }
 
-               if (row["code"].ToString().ToUpper() == ("OVERTIME") || row["code"].ToString().ToUpper() == ("OT")) {
-                  otHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-                  otPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+               if (row["code"].ToString() == ("Overtime 1.5") || row["code"].ToString() == ("Call Out 1.5") || row["code"].ToString() == ("On Call 1.5")) {
+                  otHrs += !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                  otPay += !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                }
 
-               if (row["code"].ToString().ToUpper() == "DT" | row["code"].ToString().ToUpper().Contains("DOUBLE")) {
-                  dblOTHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-                  dblOTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+               if (row["code"].ToString() == "Call Out 2.0" || row["code"].ToString() == ("Overtime 2.0") || row["code"].ToString() == ("On Call 2.0")) {
+                  dblOTHrs += !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                  dblOTPay += !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                }
 
                if (row["code"].ToString().ToUpper().Contains("MEAL")) {
-                  pnltyHrs = !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
-                  pnltyTPay = !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
+                  pnltyHrs += !String.IsNullOrEmpty(row["hrs"].ToString()) ? Double.Parse(row["hrs"].ToString()) : 0;
+                  pnltyTPay += !String.IsNullOrEmpty(row["pay"].ToString()) ? Double.Parse(row["pay"].ToString().Trim('$').Trim(' ').Trim('(').Trim(')').Trim('$').Replace(",", "")) : 0;
                }
 
                if (row["code"].ToString().ToUpper().Contains("BONUS") || row["code"].ToString().ToUpper() == ("B")) {
@@ -638,7 +639,7 @@ namespace LaborLens.SQL {
             //check to make sure shift on the same day is not a split shift
             TimeSpan timeBetweenPunches = TimeSpan.FromMinutes(30);
             if (t.timepunches.Count > 0)
-               timeBetweenPunches = DateTime.Parse(row["In_time"].ToString()).Subtract(t.timepunches[t.timepunches.Count - 1].datetime);
+               timeBetweenPunches = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()).Subtract(t.timepunches[t.timepunches.Count - 1].datetime);
 
             //If shift is the same date AND the punches are less than 6 hours apart
             if (currentID == identifier && timeBetweenPunches.TotalHours == 0) {
@@ -698,10 +699,10 @@ namespace LaborLens.SQL {
                   //}
 
                   t.timepunches.Add(new TimeIn() {
-                     datetime = DateTime.Parse( row["In_time"].ToString()),
+                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["In_time"].ToString()),
                      // clockType = c,
                      //isRestBreak = row["Cat"].ToString() == "BREAK" ? true : false,
-                    // hrsListed = Double.TryParse(row["Reg_hrs"].ToString(), out hrs) == true ? hrs : 0,
+                     hrsListed = Double.TryParse(row["Reg_hrs"].ToString(), out hrs) ? hrs : TimeSpan.TryParse(row["Reg_hrs"].ToString(), out TimeSpan ts) ? ts.TotalHours : 0,
                      //  otHrsListed = Double.TryParse(row["OT"].ToString(), out hrs) == true ? hrs : 0,
                      //   dblOtListed = Double.TryParse(row["DT"].ToString(), out  hrs) == true ? hrs : 0,
                   });
@@ -751,7 +752,7 @@ namespace LaborLens.SQL {
                   #endregion
 
                   t.timepunches.Add(new Timeout() {
-                     datetime = DateTime.Parse( row["Out_time"].ToString())
+                     datetime = DateTime.Parse(shiftdate.ToShortDateString() + " " + row["Out_time"].ToString())
                   });
 
                   if (t.timepunches[t.timepunches.Count - 1].datetime < t.timepunches[t.timepunches.Count - 2].datetime) { //If Timeout is before Timein
