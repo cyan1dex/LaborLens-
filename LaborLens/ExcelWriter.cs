@@ -1083,30 +1083,36 @@ namespace LaborLens {
                int pos = 3;
                xlWorkSheet.Cells[row - 1, pos] = "Penalties Paid";
                xlWorkSheet.Cells[row, pos++] = s.stub.penaltyHrs;//s.stub.penaltyPay > 0 ? s.stub.penaltyPay / (s.stub.regPay / s.stub.regHrs) : 0;
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                Microsoft.Office.Interop.Excel.Range cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
                xlWorkSheet.Cells[row - 1, pos] = "Tot act hrs";
                xlWorkSheet.Cells[row, pos] = s.actualTotalHours; //-- > calc for auto-deduct 5.5 ? s.actualTotalHours -.5 : s.actualTotalHours;// s.actualHours.TotalHours;// - s.actualOT.TotalHours; //Actual hours are hrs worked minus OT
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
                // cell.Interior.Color = System.Drawing.ColorTranslator.ToOle(System.Drawing.Color.Blue);
 
                //DISPLAY TIME SHEET SUMMARY
                xlWorkSheet.Cells[row - 1, pos] = "Total listed hours";
                xlWorkSheet.Cells[row, pos] = s.listedTotalHours;
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
                //DISPLAY TIME SHEET SUMMARY
                xlWorkSheet.Cells[row - 1, pos] = "Tot check hrs";
                xlWorkSheet.Cells[row, pos] = s.stub.doubleOtHrs + s.stub.otHrs + s.stub.regHrs; //Check hours can be different from the timecard hours
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
 
                xlWorkSheet.Cells[row - 1, pos] = "OT HRS (CHECK)";
                xlWorkSheet.Cells[row, pos] = s.stub.otHrs; //Check hours can be different from the timecard hours
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
                xlWorkSheet.Cells[row - 1, pos] = "OT HRS (ACT)";
                xlWorkSheet.Cells[row, pos] = s.actualOT.TotalHours; //Check hours can be different from the timecard hours
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
                if (s.actualOT.TotalHours > s.stub.doubleOtHrs)
@@ -1114,10 +1120,12 @@ namespace LaborLens {
 
                xlWorkSheet.Cells[row - 1, pos] = "DBL OT HRS (CHECK)";
                xlWorkSheet.Cells[row, pos] = s.stub.doubleOtHrs; //Check hours can be different from the timecard hours
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
                xlWorkSheet.Cells[row - 1, pos] = "DBL OT HRS (ACT)";
                xlWorkSheet.Cells[row, pos] = s.actualDblOT == null ? 0 : s.actualDblOT.TotalHours; //Check hours can be different from the timecard hours
+               xlWorkSheet.Cells[row, pos].NumberFormat = "0.00";
                cell = (Microsoft.Office.Interop.Excel.Range)xlWorkSheet.Cells[row, pos++];
 
 
