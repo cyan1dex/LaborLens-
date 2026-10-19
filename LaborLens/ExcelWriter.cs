@@ -1050,7 +1050,7 @@ namespace LaborLens {
 
                   //xlWorkSheet.Cells[row, 5] = t.totalHrsListed;
                   xlWorkSheet.Cells[row, 5] = t.regHrsListed + t.otListed;
-                  xlWorkSheet.Cells[row, 6].NumberFormat = "0.00";
+                  xlWorkSheet.Cells[row, 5].NumberFormat = "0.00";
 
                   totalHrs += t.totalHrsActual.TotalHours;
                   int col = 6;
