@@ -9,6 +9,7 @@ namespace LaborLens {
    public class Timecard {
       public int dayOfMonth;
       public DayOfWeek dayOfWeek;
+      public string shiftID;
 
       public string identifier;
       public string name;

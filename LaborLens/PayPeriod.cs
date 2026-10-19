@@ -253,52 +253,144 @@ namespace LaborLens {
       }
 
 
-      public Dictionary<string, List<Timesheet>> PopulateADPTimesheets(Dictionary<string, List<PayStub>> stubs, Dictionary<string, List<Timecard>> timeCards)
-      {
-         Dictionary<string, List<Timesheet>> timesheets = new Dictionary<string, List<Timesheet>>();
+      private System.DayOfWeek? AdpEmployerWorkweekStart = null;
 
+      private System.DayOfWeek ResolveAdpWorkweek(
+          Dictionary<string, List<PayStub>> stubs)
+      {
+         if (AdpEmployerWorkweekStart.HasValue)
+            return AdpEmployerWorkweekStart.Value;
+
+         var starts = stubs.Values.SelectMany(v => v)
+             .Where(p => p != null && !p.invalid &&
+                         p.periodBegin.HasValue && p.periodEnd.HasValue)
+             .Where(p => {
+                int days = (p.periodEnd.Value.Date - p.periodBegin.Value.Date).Days + 1;
+                return days == 7 || days == 14;
+             })
+             .Select(p => p.periodBegin.Value.DayOfWeek)
+             .Distinct().ToList();
+
+         if (starts.Count != 1)
+            throw new InvalidOperationException(
+                "Workweek start not established. Set AdpEmployerWorkweekStart " +
+                "to the employer-defined start day. The pay stubs " +
+                (starts.Count == 0 ? "contain no 7-/14-day periods." :
+                 "contain conflicting 7-/14-day period start days."));
+         return starts[0];
+      }
+
+      public Dictionary<string, List<Timesheet>> PopulateADPTimesheets(
+          Dictionary<string, List<PayStub>> stubs,
+          Dictionary<string, List<Timecard>> timeCards)
+      {
+         System.DayOfWeek workweekStart = ResolveAdpWorkweek(stubs);
+         var timesheets = new Dictionary<string, List<Timesheet>>();
+         // Avoid counting a semimonthly workweek twice when it spans two pay periods.
+         var uniqueEmployeeWeeks = new HashSet<string>();
+         var failures = new List<string>();
+         failures.Add("Employee,PeriodBegin,PeriodEnd,Type,Message");
+         // Payroll date coverage is not independent proof that timecards were
+         // produced for those dates. Without source production metadata, we
+         // cannot safely infer whether a boundary day was truly a non-workday.
+         failures.Add(CsvAuditLine("ALL", DateTime.MinValue, DateTime.MinValue,
+             "LIMITATION", "Payroll-period coverage is not proof of timecard " +
+             "production completeness. Verify missing timecard periods, especially " +
+             "at production, hire, and termination boundaries."));
+         if (!AdpEmployerWorkweekStart.HasValue)
+            failures.Add(CsvAuditLine("ALL", DateTime.MinValue, DateTime.MinValue,
+                "ASSUMPTION", "Workweek start inferred from 7/14-day payroll " +
+                "period boundaries. Confirm employer's actual defined workweek."));
 
          foreach (KeyValuePair<string, List<PayStub>> checks in stubs) {
-            timesheets[checks.Key] = new List<Timesheet>(); //Create a new timesheet, all timecards with paystubs
-
-            if(checks.Key == "4") {
-               int p = 0;
+            timesheets[checks.Key] = new List<Timesheet>();
+            List<Timecard> cards;
+            if (!timeCards.TryGetValue(checks.Key, out cards) || cards == null) {
+               foreach (PayStub check in checks.Value) {
+                  if (check.invalid || !check.periodBegin.HasValue || !check.periodEnd.HasValue)
+                     continue;
+                  if (!missingCards.ContainsKey(checks.Key)) missingCards[checks.Key] = 0;
+                  missingCards[checks.Key]++;
+               }
+               continue;
             }
 
+            // Keep every legitimate timecard, even when an employee worked two
+            // shifts on the same date. Do not use shiftID or punch times.
+            var datedCards = cards.Where(c => c != null && c.shiftDate.HasValue)
+                                  .OrderBy(c => c.shiftDate.Value.Date).ToList();
+            bool undatedWorkedCards = cards.Any(c => c != null && !c.shiftDate.HasValue &&
+                                                      c.totalHrsActual.TotalHours > 0);
+
+            // Coverage comes from the employee's produced pay periods, including
+            // zero-work dates; absence of a shift does not prove absence of work.
+            var coverage = checks.Value
+                .Where(c => c != null && !c.invalid && c.periodBegin.HasValue && c.periodEnd.HasValue)
+                .Select(c => new OvertimePeriodCoverage {
+                   Begin = c.periodBegin.Value.Date, End = c.periodEnd.Value.Date
+                }).ToList();
+
             foreach (PayStub check in checks.Value) {
-               if (check.invalid || check.periodEnd is null)
+               if (check.invalid || !check.periodBegin.HasValue || !check.periodEnd.HasValue)
                   continue;
 
-               Timesheet sheet = new Timesheet() { periodBegin = check.periodBegin, periodEnd = check.periodEnd, identifier = check.identifier };
-               sheet.stub = check;
+               var sheet = new Timesheet {
+                  periodBegin = check.periodBegin,
+                  periodEnd = check.periodEnd,
+                  identifier = check.identifier,
+                  stub = check
+               };
                totalSheets++;
 
-               if (timeCards.ContainsKey(checks.Key)) //locate all of employee's timecards
-               {
-                  //sort timecards
-                  timeCards[checks.Key] = timeCards[checks.Key].OrderBy(o => o.shiftDate).ToList();
-                  var v = timeCards[checks.Key];
+               var b = check.periodBegin.Value.Date;
+               var e = check.periodEnd.Value.Date;
+               foreach (var card in datedCards) {
+                  DateTime d = card.shiftDate.Value.Date;
+                  if (d < b) continue;
+                  if (d > e) break;
+                  sheet.timeCards.Add(card);
+                  if (card.invalid) sheet.invalid = true;
+               }
 
-                  foreach (Timecard card in timeCards[checks.Key]) {
-                     if (card.shiftDate.Value.Date < check.periodBegin.Value.Date)
-                        continue;
-                     else if (card.shiftDate.Value.Date > check.periodEnd.Value.Date)
-                        continue; //can be break if the cards are in order
-
-                     if (sheet.timeCards.Count == 0)
-                        sheet.timeCards.Add(card);
-                     else if (sheet.timeCards[sheet.timeCards.Count - 1].shiftDate != card.shiftDate)
-                        sheet.timeCards.Add(card);
-
-                     if (card.invalid)
-                        sheet.invalid = true;
+               try {
+                  // A correction/off-cycle check can have dates overlapping a
+                  // regular check. Both would otherwise be assigned the same
+                  // timecards and produce duplicated OT. Without metadata that
+                  // identifies the proper check, exclude both periods' OT from
+                  // aggregate output and report them for manual resolution.
+                  bool overlapsAnotherCheck = checks.Value.Any(other =>
+                      other != null && !object.ReferenceEquals(other, check) &&
+                      !other.invalid && other.periodBegin.HasValue &&
+                      other.periodEnd.HasValue &&
+                      other.periodBegin.Value.Date <= e &&
+                      other.periodEnd.Value.Date >= b);
+                  if (overlapsAnotherCheck) {
+                     sheet.invalid = true;
+                     failures.Add(CsvAuditLine(checks.Key, b, e, "ERROR",
+                         "Overlapping paystub periods would classify the same " +
+                         "timecards more than once. Resolve regular/off-cycle " +
+                         "check association before counting this period's OT."));
                   }
-
-                  sheet.AnalyzeADPHours();
-                  if (sheet.timeCards.Count > 20) { //If OT from 6th day
-                     int pause = 0;
+                  if (undatedWorkedCards) {
+                     sheet.invalid = true;
+                     failures.Add(CsvAuditLine(checks.Key, b, e, "ERROR",
+                         "Employee has positive-hour cards with missing shiftDate; " +
+                         "cannot determine which pay period they belong to."));
                   }
+                  if (!undatedWorkedCards && !overlapsAnotherCheck)
+                     sheet.AnalyzeADPHours(datedCards, coverage, workweekStart);
+                  if (!string.IsNullOrEmpty(sheet.OvertimeError))
+                     failures.Add(CsvAuditLine(checks.Key, b, e, "ERROR", sheet.OvertimeError));
+                  if (sheet.LastOvertimeResult != null)
+                     foreach (string warning in sheet.LastOvertimeResult.Warnings)
+                        failures.Add(CsvAuditLine(checks.Key, b, e, "WARNING", warning));
+               } catch (Exception ex) {
+                  // A bad employee-period cannot abort all employee analyses.
+                  sheet.invalid = true;
+                  failures.Add(CsvAuditLine(checks.Key, b, e, "EXCEPTION", ex.Message));
+               }
 
+               if (!sheet.invalid && sheet.timeCards.Count > 0) {
                   if (Math.Abs(sheet.actualTotalHours - sheet.listedTotalHours) < 1.5)
                      HoursMatch++;
                   else {
@@ -307,30 +399,46 @@ namespace LaborLens {
                         missingTimeCards++;
                   }
 
-                  if (!sheet.invalid && sheet.timeCards.Count > 0) {
-                     if (sheet.HasViolation())
-                        violationCount++;
-                     timesheets[checks.Key].Add(sheet);
-                  } else
-                     invalidPayperiods++;
+                  if (sheet.HasViolation()) violationCount++;
+                  timesheets[checks.Key].Add(sheet);
+                  foreach (var card in sheet.timeCards.Where(t => t.totalHrsActual.TotalHours > 0)) {
+                     var wk = CaliforniaOvertime.WeekStart(card.shiftDate.Value.Date, workweekStart);
+                     if (uniqueEmployeeWeeks.Add(checks.Key + "|" + wk.ToString("yyyyMMdd")))
+                        Timesheet.totalWorkweeks++;
+                  }
+               } else
+                  invalidPayperiods++;
 
-                  //Add in Pay in Hours for all pay types
-                  regPayTotal += check.regPay;
-                  regHrsTotal += check.regHrs;
-
-                  otHrsTotal += check.otHrs;
-                  otPayTotal += check.otPay;
-               } else {
-                  if (!missingCards.ContainsKey(checks.Key))
-                     missingCards[checks.Key] = 0;
-                  missingCards[checks.Key]++;
-               }
-               // throw new Exception("Employee time cards not found");
+               // Preserve your historical pay aggregates; still count pay even
+               // when the corresponding time-period cannot be classified.
+               regPayTotal += check.regPay;
+               regHrsTotal += check.regHrs;
+               otHrsTotal += check.otHrs;
+               otPayTotal += check.otPay;
             }
          }
 
-
+         // Keep diagnostics outside the data output, but ALWAYS create an audit
+         // file to distinguish reviewed exceptions from successful calculations.
+         string auditPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+             "ADP_OT_Exceptions.csv");
+         // Retain a unique historical copy; the familiar path remains the latest.
+         string archivedAuditPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+             "ADP_OT_Exceptions_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") +
+             "_" + Guid.NewGuid().ToString("N") + ".csv");
+         System.IO.File.WriteAllLines(archivedAuditPath, failures);
+         System.IO.File.WriteAllLines(auditPath, failures);
          return timesheets;
+      }
+
+      private static string CsvAuditLine(string emp, DateTime start, DateTime end,
+                                         string type, string message)
+      {
+         // Escape CSV quotes / line breaks; employee ID contains no commas ordinarily.
+         Func<string, string> csv = s => "\"" + (s ?? "").Replace("\"", "\"\"")
+             .Replace("\r", " ").Replace("\n", " ") + "\"";
+         return csv(emp) + "," + start.ToString("yyyy-MM-dd") + "," +
+                end.ToString("yyyy-MM-dd") + "," + csv(type) + "," + csv(message);
       }
 
       public Dictionary<string, List<Timesheet>> PopulateADPTimesheets(Dictionary<string, List<PayStub>> stubs, Dictionary<string, List<Timesheet>> empSheets)

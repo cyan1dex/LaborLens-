@@ -1009,6 +1009,8 @@ namespace LaborLens {
                if (s.invalid)
                   continue;
 
+               //if (s.identifier != "6185185")
+               //   continue;
                //if (Math.Abs(s.actualTotalHours - (s.stub.doubleOtHrs + s.stub.otHrs + s.stub.regHrs)) > 4)
                //   continue;
 
