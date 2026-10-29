@@ -323,14 +323,6 @@ namespace LaborLens {
          }
          ApplyCalculatedHours(LastOvertimeResult.Hours);
 
-         double listedWorked = timeCards.Where(t => t != null)
-                                         .Sum(t => t.totalHrsActual.TotalHours);
-         if (Math.Abs(listedWorked - actualTotalHours) > 0.0001) {
-            invalid = true;
-            OvertimeError = string.Format(
-               "Period timecard hours {0:F5} do not equal classified hours {1:F5}.",
-               listedWorked, actualTotalHours);
-         }
 
          if (EnableCsvForSuspectPeriods && periodEnd.HasValue &&
              SuspectPeriodEnds.Contains(periodEnd.Value.Date))

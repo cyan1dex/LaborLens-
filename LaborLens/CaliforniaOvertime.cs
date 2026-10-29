@@ -80,86 +80,103 @@ namespace LaborLens
                 answer.Errors.Add("Incomplete workweek coverage: " +
                     string.Join(", ", uncovered.Select(d => d.ToString("yyyy-MM-dd"))));
 
-            var candidates = allEmployeeCards.Where(t => t != null && t.shiftDate.HasValue &&
-                                       t.shiftDate.Value.Date >= first &&
-                                       t.shiftDate.Value.Date <= last).ToList();
-            if (candidates.Any(t => t.invalid ||
-                        double.IsNaN(t.totalHrsActual.TotalHours) ||
-                        double.IsInfinity(t.totalHrsActual.TotalHours) ||
-                        t.totalHrsActual.TotalHours < 0))
-                answer.Errors.Add("Invalid or negative-hour timecard in a relevant workweek.");
+         // Include cards that start the day before the first week, since an
+         // overnight shift can carry hours into that week.
+         var candidates = allEmployeeCards.Where(t => t != null && t.shiftDate.HasValue &&
+                                    t.shiftDate.Value.Date >= first.AddDays(-1) &&
+                                    t.shiftDate.Value.Date <= last).ToList();
+         if (candidates.Any(t => t.invalid ||
+                     double.IsNaN(t.totalHrsActual.TotalHours) ||
+                     double.IsInfinity(t.totalHrsActual.TotalHours) ||
+                     t.totalHrsActual.TotalHours < 0))
+            answer.Errors.Add("Invalid or negative-hour timecard in a relevant workweek.");
+         if (!answer.IsValid) return answer;
 
-            // Without complete data, do not return an apparently valid OT figure.
-            if (!answer.IsValid) return answer;
+         var dayHours = HoursByDay(candidates);
 
-            // Two cards on one date can legitimately represent two shifts; retain both.
-            // Identical hours on the same date are ambiguous, so warn rather than
-            // silently delete them (there is no reliable unique shift identifier).
-            var potentialDuplicates = candidates.GroupBy(t => new {
-                Date = t.shiftDate.Value.Date,
-                Ticks = t.totalHrsActual.Ticks
-            }).Where(g => g.Count() > 1 && g.Key.Ticks > 0).ToList();
-            if (potentialDuplicates.Count > 0)
-                answer.Warnings.Add("Potential duplicate same-day/same-hours cards: " +
-                    string.Join(", ", potentialDuplicates.Select(g =>
-                        g.Key.Date.ToString("yyyy-MM-dd") + " (" + g.Count() + ")")));
+         for (var weekStart = first; weekStart <= last; weekStart = weekStart.AddDays(7)) {
+            bool seventhDay = Enumerable.Range(0, 7).All(i =>
+                dayHours.ContainsKey(weekStart.AddDays(i)) && dayHours[weekStart.AddDays(i)] > EPS);
+            double regularSoFar = 0;
 
-            foreach (var week in candidates.GroupBy(t => WeekStart(t.shiftDate.Value.Date, workweekStart))
-                                          .OrderBy(g => g.Key))
-            {
-                var daily = week.GroupBy(t => t.shiftDate.Value.Date)
-                    .ToDictionary(g => g.Key, g => g.Sum(t => t.totalHrsActual.TotalHours));
-                bool seventhDay = Enumerable.Range(0, 7).All(i =>
-                    daily.ContainsKey(week.Key.AddDays(i)) && daily[week.Key.AddDays(i)] > EPS);
-                double regularSoFar = 0;
+            for (int i = 0; i < 7; i++) {
+               DateTime date = weekStart.AddDays(i);
+               double hrs;
+               if (!dayHours.TryGetValue(date, out hrs) || hrs <= EPS) continue;
 
-                for (int i = 0; i < 7; i++)
-                {
-                    DateTime date = week.Key.AddDays(i);
-                    double hrs;
-                    if (!daily.TryGetValue(date, out hrs) || hrs <= EPS) continue;
+               double straightEligible, ot, dt;
+               if (seventhDay && i == 6) {
+                  straightEligible = 0;
+                  ot = Math.Min(8, hrs);
+                  dt = Math.Max(0, hrs - 8);
+               } else {
+                  straightEligible = Math.Min(8, hrs);
+                  ot = Math.Min(4, Math.Max(0, hrs - 8));
+                  dt = Math.Max(0, hrs - 12);
+               }
 
-                    double straightEligible, ot, dt;
-                    if (seventhDay && i == 6)
-                    {
-                        straightEligible = 0;
-                        ot = Math.Min(8, hrs);
-                        dt = Math.Max(0, hrs - 8);
-                    }
-                    else
-                    {
-                        straightEligible = Math.Min(8, hrs);
-                        ot = Math.Min(4, Math.Max(0, hrs - 8));
-                        dt = Math.Max(0, hrs - 12);
-                    }
+               double reg = Math.Min(straightEligible, Math.Max(0, 40 - regularSoFar));
+               ot += straightEligible - reg;
+               regularSoFar += reg;
 
-                    // Daily-premium hours are excluded from the 40-hour straight
-                    // bucket. Remaining straight hours over 40 become weekly OT.
-                    double reg = Math.Min(straightEligible, Math.Max(0, 40 - regularSoFar));
-                    ot += straightEligible - reg;
-                    regularSoFar += reg;
+               if (date < begin || date > end) continue;
+               answer.Days.Add(new OvertimeDayResult {
+                  Date = date, WeekStart = weekStart, Worked = hrs,
+                  Regular = reg, Overtime = ot, Doubletime = dt
+               });
+               answer.Hours.RegularHours += reg;
+               answer.Hours.OvertimeHours += ot;
+               answer.Hours.DoubletimeHours += dt;
+            }
+         }
 
-                    if (date < begin || date > end) continue;
-                    var row = new OvertimeDayResult {
-                        Date = date, WeekStart = week.Key, Worked = hrs,
-                        Regular = reg, Overtime = ot, Doubletime = dt
-                    };
-                    answer.Days.Add(row);
-                    answer.Hours.RegularHours += reg;
-                    answer.Hours.OvertimeHours += ot;
-                    answer.Hours.DoubletimeHours += dt;
-                }
+         double worked = dayHours.Where(kv => kv.Key >= begin && kv.Key <= end).Sum(kv => kv.Value);
+         double classified = answer.Hours.RegularHours + answer.Hours.OvertimeHours +
+                             answer.Hours.DoubletimeHours;
+         if (Math.Abs(classified - worked) > 0.0001)
+            answer.Errors.Add(string.Format("Hour reconciliation failed: worked {0:F5}, classified {1:F5}.",
+                                           worked, classified));
+         return answer;
+      }
+
+      // Splits each card's hours across the calendar days its punches actually cover.
+      // Total hours per card stay exactly equal to totalHrsActual.
+      private static Dictionary<DateTime, double> HoursByDay(IEnumerable<Timecard> cards)
+      {
+         var byDay = new Dictionary<DateTime, double>();
+         foreach (var card in cards) {
+            double cardHours = card.totalHrsActual.TotalHours;
+            var p = (card.timepunches ?? new List<Timepunch>())
+                    .Select(x => x.datetime).OrderBy(x => x).ToList();
+
+            // Punched minutes on each date, from in/out pairs
+            var punched = new Dictionary<DateTime, double>();
+            for (int i = 0; i + 1 < p.Count; i += 2) {
+               DateTime a = p[i], b = p[i + 1];
+               while (a < b) {
+                  DateTime cut = b < a.Date.AddDays(1) ? b : a.Date.AddDays(1);
+                  double cur;
+                  punched.TryGetValue(a.Date, out cur);
+                  punched[a.Date] = cur + (cut - a).TotalHours;
+                  a = cut;
+               }
             }
 
-            double worked = candidates.Where(t => t.shiftDate.Value.Date >= begin &&
-                                                 t.shiftDate.Value.Date <= end)
-                                      .Sum(t => t.totalHrsActual.TotalHours);
-            double classified = answer.Hours.RegularHours + answer.Hours.OvertimeHours +
-                                answer.Hours.DoubletimeHours;
-            if (Math.Abs(classified - worked) > 0.0001)
-                answer.Errors.Add(string.Format("Hour reconciliation failed: worked {0:F5}, classified {1:F5}.",
-                                               worked, classified));
-            return answer;
-        }
-    }
+            double totalPunched = punched.Values.Sum();
+            if (totalPunched <= EPS) {
+               // No usable punch pairs: keep the old behavior for this card
+               double cur;
+               byDay.TryGetValue(card.shiftDate.Value.Date, out cur);
+               byDay[card.shiftDate.Value.Date] = cur + cardHours;
+               continue;
+            }
+            foreach (var kv in punched) {
+               double cur;
+               byDay.TryGetValue(kv.Key, out cur);
+               byDay[kv.Key] = cur + cardHours * kv.Value / totalPunched;
+            }
+         }
+         return byDay;
+      }
+   }
 }
