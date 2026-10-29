@@ -271,12 +271,13 @@ namespace LaborLens {
              .Select(p => p.periodBegin.Value.DayOfWeek)
              .Distinct().ToList();
 
-         if (starts.Count != 1)
-            throw new InvalidOperationException(
-                "Workweek start not established. Set AdpEmployerWorkweekStart " +
-                "to the employer-defined start day. The pay stubs " +
-                (starts.Count == 0 ? "contain no 7-/14-day periods." :
-                 "contain conflicting 7-/14-day period start days."));
+         if (starts.Count != 1) {
+            starts.Clear();
+
+            starts.Add(AdpEmployerWorkweekStart.GetValueOrDefault(System.DayOfWeek.Sunday));
+
+         }
+
          return starts[0];
       }
 
