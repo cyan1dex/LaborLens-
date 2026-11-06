@@ -253,7 +253,8 @@ namespace LaborLens {
       }
 
 
-      private System.DayOfWeek? AdpEmployerWorkweekStart = null;
+      // Employer's defined workweek. Set this per case from a pay stub, handbook, or discovery.
+      public System.DayOfWeek? AdpEmployerWorkweekStart { get; set; } = null;
 
       private System.DayOfWeek ResolveAdpWorkweek(
           Dictionary<string, List<PayStub>> stubs)
@@ -261,24 +262,24 @@ namespace LaborLens {
          if (AdpEmployerWorkweekStart.HasValue)
             return AdpEmployerWorkweekStart.Value;
 
-         var starts = stubs.Values.SelectMany(v => v)
+         var valid = stubs.Values.SelectMany(v => v)
              .Where(p => p != null && !p.invalid &&
                          p.periodBegin.HasValue && p.periodEnd.HasValue)
-             .Where(p => {
-                int days = (p.periodEnd.Value.Date - p.periodBegin.Value.Date).Days + 1;
-                return days == 7 || days == 14;
-             })
-             .Select(p => p.periodBegin.Value.DayOfWeek)
-             .Distinct().ToList();
+             .ToList();
 
-         if (starts.Count != 1) {
-            starts.Clear();
+         // Infer only when the whole payroll is weekly or biweekly. A semi-monthly
+         // payroll cannot reveal the workweek, and a stray 7 or 14 day period
+         // (Feb 16-29 in a leap year, an off-cycle check) must not set it.
+         bool allWeeklyOrBiweekly = valid.Count > 0 && valid.All(p => {
+            int days = (p.periodEnd.Value.Date - p.periodBegin.Value.Date).Days + 1;
+            return days == 7 || days == 14;
+         });
 
-            starts.Add(AdpEmployerWorkweekStart.GetValueOrDefault(System.DayOfWeek.Sunday));
+         if (!allWeeklyOrBiweekly)
+            return System.DayOfWeek.Sunday;
 
-         }
-
-         return starts[0];
+         var starts = valid.Select(p => p.periodBegin.Value.DayOfWeek).Distinct().ToList();
+         return starts.Count == 1 ? starts[0] : System.DayOfWeek.Sunday;
       }
 
       public Dictionary<string, List<Timesheet>> PopulateADPTimesheets(
